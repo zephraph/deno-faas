@@ -4,7 +4,8 @@
     "jsr:@std/encoding@*": "1.0.5",
     "jsr:@std/path@*": "1.0.6",
     "npm:@types/node@*": "22.5.4",
-    "npm:hono@*": "4.5.9"
+    "npm:hono@*": "4.5.9",
+    "npm:undici@*": "6.20.1"
   },
   "jsr": {
     "@std/encoding@1.0.5": {
@@ -26,6 +27,9 @@
     },
     "undici-types@6.19.8": {
       "integrity": "sha512-ve2KP6f/JnbPBFyobGHuerC9g1FYGn/F8n1LWTwNxCEzd6IfqTwUQcNXgEtmmQ6DlRrC1hrSrBnCZPokRrDHjw=="
+    },
+    "undici@6.20.1": {
+      "integrity": "sha512-AjQF1QsmqfJys+LXfGTNum+qw4S88CojRInG/6t31W/1fk6G59s92bnAvGz5Cmur+kQv2SURXEvvudLmbrE8QA=="
     }
   },
   "redirects": {
