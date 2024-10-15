@@ -1,5 +1,4 @@
 {
-  "name": "deno-faas",
   "tasks": {
     "dev": "deno run -A --watch supervisor.ts"
   },

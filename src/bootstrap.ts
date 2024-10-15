@@ -32,29 +32,6 @@ const server = Deno.serve(
     },
   },
   (req) => {
-    const headerUrl = req.headers.get("X-Deno-Worker-Url");
-    if (!headerUrl) {
-      return Response.json({ warming: true }, { status: 200 });
-    }
-
-    const url = new URL(headerUrl);
-    req = new Request(url.toString(), req);
-    req.headers.delete("host");
-    req.headers.delete("connection");
-    if (req.headers.has("X-Deno-Worker-Host")) {
-      req.headers.set("host", req.headers.get("X-Deno-Worker-Host")!);
-    }
-    if (req.headers.has("X-Deno-Worker-Connection")) {
-      req.headers.set(
-        "connection",
-        req.headers.get("X-Deno-Worker-Connection")!
-      );
-    }
-
-    req.headers.delete("X-Deno-Worker-Url");
-    req.headers.delete("X-Deno-Worker-Host");
-    req.headers.delete("X-Deno-Worker-Connection");
-
     return main(req);
   }
 );
