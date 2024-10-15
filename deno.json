@@ -1,0 +1,9 @@
+{
+  "name": "deno-faas",
+  "tasks": {
+    "dev": "deno run -A --watch supervisor.ts"
+  },
+  "imports": {
+    "@std/assert": "jsr:@std/assert@1"
+  }
+}
