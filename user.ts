@@ -16,7 +16,10 @@ await supervisor.load(
 
 await supervisor.load(
   "test2",
-  `export default function main() {return Response.json({"test": "no"});}`,
+  `export default function main() {
+    console.log("test2");
+    return Response.json({"test": "no"});
+   }`,
 );
 
 await supervisor.load(
@@ -25,11 +28,11 @@ await supervisor.load(
 );
 
 Deno.addSignalListener("SIGINT", async () => {
-    await supervisor.shutdown();
-    Deno.exit(0);
+  await supervisor.shutdown();
+  Deno.exit(0);
 });
 
 Deno.addSignalListener("SIGTERM", async () => {
-    await supervisor.shutdown();
-    Deno.exit(0);
+  await supervisor.shutdown();
+  Deno.exit(0);
 });

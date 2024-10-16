@@ -16,6 +16,14 @@ class Worker {
       ],
       stdout: "piped",
     }).spawn();
+
+    // Setup logging
+    const logFile = Deno.openSync(`store/${this.name}/stdout.log`, {
+      write: true,
+      create: true,
+    });
+    this.#process.stdout.pipeTo(logFile.writable);
+
     this.#process.status.then(() => {
       this.#running = false;
     });
