@@ -23,3 +23,13 @@ await supervisor.load(
   "test3",
   `export default function main() {return fetch("https://example.com")}`,
 );
+
+Deno.addSignalListener("SIGINT", async () => {
+    await supervisor.shutdown();
+    Deno.exit(0);
+});
+
+Deno.addSignalListener("SIGTERM", async () => {
+    await supervisor.shutdown();
+    Deno.exit(0);
+});
