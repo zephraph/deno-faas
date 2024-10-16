@@ -16,6 +16,14 @@ class Worker {
       ],
       stdout: "piped",
     }).spawn();
+
+    // Setup logging
+    const logFile = Deno.openSync(`store/${this.name}/stdout.log`, {
+      write: true,
+      create: true,
+    });
+    this.#process.stdout.pipeTo(logFile.writable);
+
     this.#process.status.then(() => {
       this.#running = false;
     });
@@ -27,7 +35,8 @@ class Worker {
       `http://localhost:${this.port}${url.pathname}`,
       req,
     );
-    console.log("[worker]", newReq);
+    const reqId = crypto.randomUUID();
+    newReq.headers.set("x-req-id", reqId);
     return fetch(newReq);
   }
 
@@ -55,6 +64,11 @@ class Worker {
       }
     }
   }
+
+  shutdown() {
+    console.log("[worker]", this.name, "shutting down");
+    this.#process.kill("SIGINT");
+  }
 }
 
 export class DenoHttpSupervisor {
@@ -77,5 +91,13 @@ export class DenoHttpSupervisor {
   load(name: string, code: string) {
     this.#workers[name] = new Worker(name, code);
     return this.#workers[name].waitUntilReady();
+  }
+
+  async shutdown() {
+    console.log("[supervisor] shutting down");
+    await this.#server.shutdown();
+    for (const worker of Object.values(this.#workers)) {
+      worker.shutdown();
+    }
   }
 }

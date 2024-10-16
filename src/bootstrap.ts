@@ -3,6 +3,23 @@
 const port = Deno.args[0];
 const script = Deno.args[1];
 
+{
+  const oldLog = console.log;
+  const oldInfo = console.info;
+  const oldWarn = console.warn;
+  const oldError = console.error;
+  console.log = (...data) =>
+    oldLog(`LOG  [${new Date().toISOString()}]`, ...data);
+  console.info = (...data) =>
+    oldInfo(`INFO [${new Date().toISOString()}]`, ...data);
+  console.warn = (...data) =>
+    oldWarn(`WARN [${new Date().toISOString()}]`, ...data);
+  console.error = (...data) =>
+    oldError(`ERROR [${new Date().toISOString()}]`, ...data);
+  // Ensure console can't be further modified
+  Object.freeze(console);
+}
+
 if (!port) {
   throw new Error("Port is required");
 }
