@@ -1,10 +1,10 @@
 // Copied from https://github.com/val-town/deno-http-worker/blob/main/deno-bootstrap/index.ts
 
-const socketFile = Deno.args[0];
+const port = Deno.args[0];
 const script = Deno.args[1];
 
-if (!socketFile) {
-  throw new Error("Socket file is required");
+if (!port) {
+  throw new Error("Port is required");
 }
 
 if (!script) {
@@ -24,7 +24,7 @@ if (typeof main !== "function") {
 
 const server = Deno.serve(
   {
-    path: socketFile,
+    port: parseInt(port),
     onListen: () => {},
     onError: (error) => {
       console.error(error);
