@@ -11,15 +11,15 @@ await supervisor.load(
     app.get('*', (c) => c.json({"msg": 'Hello Cloudflare Workers!'}))
 
     export default app.fetch
-`
+`,
 );
 
 await supervisor.load(
   "test2",
-  `export default function main() {return Response.json({"test": "no"});}`
+  `export default function main() {return Response.json({"test": "no"});}`,
 );
 
 await supervisor.load(
   "test3",
-  `export default function main() {return fetch("https://example.com")}`
+  `export default function main() {return fetch("https://example.com")}`,
 );

@@ -33,7 +33,7 @@ const server = Deno.serve(
   },
   (req) => {
     return main(req);
-  }
+  },
 );
 
 globalThis.onerror = (event) => {
