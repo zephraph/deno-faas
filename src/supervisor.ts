@@ -25,7 +25,7 @@ class Worker {
     const url = new URL(req.url);
     const newReq = new Request(
       `http://localhost:${this.port}${url.pathname}`,
-      req
+      req,
     );
     console.log("[worker]", newReq);
     return fetch(newReq);
