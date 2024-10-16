@@ -9,6 +9,7 @@ class Worker {
       args: [
         "run",
         "--allow-net",
+        `--lock=./store/${name}/deno.lock`,
         "./src/bootstrap.ts",
         this.port.toString(),
         code,
