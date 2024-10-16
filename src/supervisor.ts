@@ -1,56 +1,56 @@
-import { Agent, fetch as uFetch } from 'npm:undici';
-
 class Worker {
-  #socketFile: string;
   #process: Deno.ChildProcess;
-  #agent: Agent;
   #running = true;
+  port: number;
 
   constructor(public readonly name: string, code: string) {
-    this.#socketFile = `${name}-${crypto.randomUUID()}.sock`
+    this.port = this.findFreePort();
     this.#process = new Deno.Command(Deno.execPath(), {
       args: [
         "run",
-        "-A",
+        "--allow-net",
         "./src/bootstrap.ts",
-        this.#socketFile,
-        code
+        this.port.toString(),
+        code,
       ],
       stdout: "piped",
-    }).spawn()
-    // this.#process.stdout.pipeTo(Deno.stdout.writable);
-    this.#agent = new Agent({
-      connect: {
-        socketPath: this.#socketFile,
-        keepAlive: true
-      }
-    })
+    }).spawn();
     this.#process.status.then(() => {
-      this.#running = false
-    })
+      this.#running = false;
+    });
   }
 
-  async run(req: Request) {
-    let res = await uFetch(req.url, {
-      dispatcher: this.#agent
-    })
-
-    console.log(res)
-
-    let resJson = await res.json();
-    return new Response(JSON.stringify(resJson), { headers: {"Content-Type": "application/json"}})
+  run(req: Request) {
+    const url = new URL(req.url);
+    const newReq = new Request(
+      `http://localhost:${this.port}${url.pathname}`,
+      req
+    );
+    console.log("[worker]", newReq);
+    return fetch(newReq);
   }
 
-  async waitForSocket() {
+  private findFreePort(): number {
+    const server = Deno.listen({ port: 0 });
+    const { port } = server.addr as Deno.NetAddr;
+    server.close();
+    return port;
+  }
+
+  async waitUntilReady() {
     while (this.#running) {
       try {
-        await Deno.lstat(this.#socketFile);
-        break;
+        const server = Deno.listen({ port: this.port });
+        server.close();
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        continue;
       } catch (e) {
-        if (!(e instanceof Deno.errors.NotFound)){
-          throw e
-        } 
-        await new Promise((r) => setTimeout(r, 20))
+        if (e instanceof Deno.errors.AddrInUse) {
+          console.log("[worker]", this.name, "is ready");
+          break;
+        }
+        console.error("[worker]", this.name, "errored", e);
+        throw e;
       }
     }
   }
@@ -61,21 +61,20 @@ export class DenoHttpSupervisor {
   #server: Deno.HttpServer;
 
   constructor() {
-    this.#workers = {}
+    this.#workers = {};
     this.#server = Deno.serve((req) => {
       const url = new URL(req.url);
-      const name = url.pathname.slice(1)
+      const name = url.pathname.slice(1);
       if (name in this.#workers) {
-        const worker = this.#workers[name]
-        return worker.run(req)
+        const worker = this.#workers[name];
+        return worker.run(req);
       }
       return Response.json({ error: "Not found" }, { status: 404 });
     });
   }
 
-  load (name: string, code: string) {
-    const w = new Worker(name, code)
-    this.#workers[name] = w
-    return w.waitForSocket()
+  load(name: string, code: string) {
+    this.#workers[name] = new Worker(name, code);
+    return this.#workers[name].waitUntilReady();
   }
 }
