@@ -2,6 +2,7 @@
   "tasks": {
     "dev": "deno run -A --watch=src/bootstrap.ts user.ts",
     "check": "deno lint && deno fmt && deno check .",
+    "build": "docker build -t worker .",
     "demo": "deno serve --env -A --watch scripts/demo.tsx"
   },
   "imports": {

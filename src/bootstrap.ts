@@ -1,7 +1,6 @@
 // Copied from https://github.com/val-town/deno-http-worker/blob/main/deno-bootstrap/index.ts
 
-const port = Deno.args[0];
-const script = Deno.args[1];
+const script = Deno.args[0];
 
 {
   const oldLog = console.log;
@@ -18,10 +17,6 @@ const script = Deno.args[1];
     oldError(`ERROR [${new Date().toISOString()}]`, ...data);
   // Ensure console can't be further modified
   Object.freeze(console);
-}
-
-if (!port) {
-  throw new Error("Port is required");
 }
 
 if (!script) {
@@ -41,7 +36,6 @@ if (typeof main !== "function") {
 
 const server = Deno.serve(
   {
-    port: parseInt(port),
     onListen: () => {},
     onError: (error) => {
       console.error(error);

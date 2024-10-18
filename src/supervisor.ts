@@ -7,26 +7,25 @@ class Worker {
   constructor(public readonly name: string, code: string, version: number = 0) {
     this.version = version;
     this.port = this.findFreePort();
-    this.#process = new Deno.Command(Deno.execPath(), {
-      args: [
-        "run",
-        "--allow-net",
-        `--lock=./store/${name}/deno.lock`,
-        "./src/bootstrap.ts",
-        this.port.toString(),
-        code,
-      ],
-      stdout: "piped",
-    }).spawn();
-
-    Deno.mkdirSync(`store/${this.name}`, { recursive: true });
-
-    // Setup logging
-    const logFile = Deno.openSync(`store/${this.name}/stdout.log`, {
-      write: true,
-      create: true,
-    });
-    this.#process.stdout.pipeTo(logFile.writable);
+    this.#process = new Deno.Command(
+      "docker",
+      {
+        args: [
+          "run",
+          "--rm",
+          "-it",
+          `-p`,
+          `${this.port}:8000`,
+          "--cpus",
+          "0.2",
+          "--memory",
+          "200m",
+          "worker",
+          code,
+        ],
+        stdout: "piped",
+      },
+    ).spawn();
 
     this.#process.status.then(() => {
       this.#running = false;
