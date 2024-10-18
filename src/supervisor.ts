@@ -96,6 +96,7 @@ export class DenoHttpSupervisor {
   }
 
   get url() {
+    // @ts-expect-error it's fine
     return `http://${this.#server.addr.hostname}:${this.#server.addr.port}`;
   }
 
