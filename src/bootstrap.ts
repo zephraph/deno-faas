@@ -49,7 +49,14 @@ const server = Deno.serve(
     },
   },
   (req) => {
-    return main(req);
+    try {
+      return main(req);
+    } catch (error) {
+      if (error instanceof Deno.errors.NotCapable) {
+        return new Response("Naughty", { status: 401 });
+      }
+      throw error;
+    }
   },
 );
 

@@ -1,2 +1,4 @@
 store/**/*.log
 store/**/*.lock
+
+.env

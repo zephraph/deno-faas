@@ -1,6 +1,16 @@
+import {
+  ChatCompletionRequestMessage,
+  Configuration,
+  OpenAIApi,
+} from "npm:openai";
 import { Hono } from "npm:hono";
 import type { FC } from "npm:hono/jsx";
 import { DenoHttpSupervisor } from "../src/supervisor.ts";
+
+const configuration = new Configuration({
+  apiKey: Deno.env.get("OPENAI_API_KEY"),
+});
+const openai = new OpenAIApi(configuration);
 
 const app = new Hono();
 const sv = new DenoHttpSupervisor();
@@ -68,9 +78,39 @@ app.post("/create", async (c) => {
     c.header("Set-Cookie", `id=${id}`);
   }
   if (prompt) {
+    // Call openai
+    const response = await openai.createChatCompletion({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "system",
+          content: `
+            You are tasked with creating a function that takes a request and returns a response. The function must
+            be a default export. Do not return the response as markdown, only pure code. Do not wrap any code in markdown
+            code fences. Responses from the function should always return HTML. Don't generate code that reads query parameters
+            or url.searchParams from the request. This function executes in Deno's runtime.
+            
+            Here's an example
+
+            export default function handler(req: Request) {
+              return new Response("Hello World");
+            }
+            
+            For the following prompt, create the function that satisfies the prompt.
+          `.trim(),
+        },
+        {
+          role: "user",
+          content: prompt as string,
+        },
+      ],
+    });
+
+    console.log(response.data.choices[0].message?.content);
+
     await sv.load(
       id,
-      prompt as string,
+      response.data.choices[0].message?.content as string,
     );
   }
   return c.html(
