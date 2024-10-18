@@ -1,7 +1,8 @@
 {
   "tasks": {
     "dev": "deno run -A --watch=src/bootstrap.ts user.ts",
-    "check": "deno lint && deno fmt && deno check ."
+    "check": "deno lint && deno fmt && deno check .",
+    "demo": "deno serve --watch scripts/demo.tsx"
   },
   "imports": {
     "@std/assert": "jsr:@std/assert@1"
