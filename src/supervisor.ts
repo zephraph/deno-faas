@@ -33,6 +33,10 @@ class Worker {
     });
   }
 
+  get running() {
+    return this.#running;
+  }
+
   run(req: Request) {
     const url = new URL(req.url);
     const newReq = new Request(
@@ -61,12 +65,13 @@ class Worker {
       } catch (e) {
         if (e instanceof Deno.errors.AddrInUse) {
           console.log("[worker]", `${this.name}@${this.version}`, "is ready");
-          break;
+          return true;
         }
         console.error("[worker]", `${this.name}@${this.version}`, "errored", e);
         throw e;
       }
     }
+    return false;
   }
 
   shutdown() {
@@ -105,9 +110,12 @@ export class DenoHttpSupervisor {
     if (name in this.#workers) {
       oldWorker = this.#workers[name];
     }
-    this.#workers[name] = new Worker(name, code, (oldWorker?.version ?? 0) + 1);
-    await this.#workers[name].waitUntilReady();
-    oldWorker?.shutdown();
+    const newWorker = new Worker(name, code, (oldWorker?.version ?? 0) + 1);
+    const success = await newWorker.waitUntilReady();
+    if (success && newWorker.running) {
+      oldWorker?.shutdown();
+      this.#workers[name] = newWorker;
+    }
   }
 
   async shutdown() {
