@@ -1,8 +1,4 @@
-import {
-  ChatCompletionRequestMessage,
-  Configuration,
-  OpenAIApi,
-} from "npm:openai";
+import { Configuration, OpenAIApi } from "npm:openai";
 import { Hono } from "npm:hono";
 import type { FC } from "npm:hono/jsx";
 import { DenoHttpSupervisor } from "../src/supervisor.ts";
