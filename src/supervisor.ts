@@ -2,8 +2,10 @@ class Worker {
   #process: Deno.ChildProcess;
   #running = true;
   port: number;
+  version: number;
 
-  constructor(public readonly name: string, code: string) {
+  constructor(public readonly name: string, code: string, version: number = 0) {
+    this.version = version;
     this.port = this.findFreePort();
     this.#process = new Deno.Command(Deno.execPath(), {
       args: [
@@ -16,6 +18,8 @@ class Worker {
       ],
       stdout: "piped",
     }).spawn();
+
+    Deno.mkdirSync(`store/${this.name}`, { recursive: true });
 
     // Setup logging
     const logFile = Deno.openSync(`store/${this.name}/stdout.log`, {
@@ -56,18 +60,20 @@ class Worker {
         continue;
       } catch (e) {
         if (e instanceof Deno.errors.AddrInUse) {
-          console.log("[worker]", this.name, "is ready");
+          console.log("[worker]", `${this.name}@${this.version}`, "is ready");
           break;
         }
-        console.error("[worker]", this.name, "errored", e);
+        console.error("[worker]", `${this.name}@${this.version}`, "errored", e);
         throw e;
       }
     }
   }
 
   shutdown() {
-    console.log("[worker]", this.name, "shutting down");
-    this.#process.kill("SIGINT");
+    console.log("[worker]", `${this.name}@${this.version}`, "shutting down");
+    if (this.#running) {
+      this.#process.kill("SIGINT");
+    }
   }
 }
 
@@ -77,7 +83,7 @@ export class DenoHttpSupervisor {
 
   constructor() {
     this.#workers = {};
-    this.#server = Deno.serve((req) => {
+    this.#server = Deno.serve({ port: 0 }, (req) => {
       const url = new URL(req.url);
       const name = url.pathname.slice(1);
       if (name in this.#workers) {
@@ -86,11 +92,21 @@ export class DenoHttpSupervisor {
       }
       return Response.json({ error: "Not found" }, { status: 404 });
     });
+    console.log("[supervisor] listening on", this.#server.addr);
   }
 
-  load(name: string, code: string) {
-    this.#workers[name] = new Worker(name, code);
-    return this.#workers[name].waitUntilReady();
+  get url() {
+    return `http://${this.#server.addr.hostname}:${this.#server.addr.port}`;
+  }
+
+  async load(name: string, code: string) {
+    let oldWorker: Worker | undefined;
+    if (name in this.#workers) {
+      oldWorker = this.#workers[name];
+    }
+    this.#workers[name] = new Worker(name, code, (oldWorker?.version ?? 0) + 1);
+    await this.#workers[name].waitUntilReady();
+    oldWorker?.shutdown();
   }
 
   async shutdown() {
