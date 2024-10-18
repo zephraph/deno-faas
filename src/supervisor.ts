@@ -105,6 +105,10 @@ export class DenoHttpSupervisor {
     return `http://${this.#server.addr.hostname}:${this.#server.addr.port}`;
   }
 
+  get ids() {
+    return Object.keys(this.#workers);
+  }
+
   async load(name: string, code: string) {
     let oldWorker: Worker | undefined;
     if (name in this.#workers) {
