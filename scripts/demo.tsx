@@ -46,17 +46,20 @@ const PromptForm: FC = ({ input }: { input?: string }) => {
   );
 };
 
-const Iframe = ({id}: {id: string}) => {
-  return (
-    <iframe src={`${sv.url}/${id}`} />
-  )
-}
+const Iframe = ({ id }: { id: string }) => {
+  return <iframe src={`${sv.url}/${id}`} />;
+};
 
 app.get("/", (c) => {
   return c.html(
     <Template>
       <>
-        <h1>Hello World {" "}<a href="/create"><button>create</button></a></h1>
+        <h1>
+          Hello World{"  "}
+          <a href="/create">
+            <button>create</button>
+          </a>
+        </h1>
         <div class="grid">
           {sv.ids.map((id) => <Iframe id={id} />)}
         </div>
