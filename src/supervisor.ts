@@ -36,12 +36,12 @@ class Worker {
       },
     ).spawn();
 
-    this.#process.status.then((status) => {
+    this.#process.status.then(({ code }) => {
       console.log(
         "[worker]",
         `${this.name}@${this.version}`,
         "stopped with",
-        status,
+        code,
       );
       this.#running = false;
     });
@@ -116,7 +116,10 @@ export class DenoHttpSupervisor {
       }
       return Response.json({ error: "Not found" }, { status: 404 });
     });
-    console.log("[supervisor] listening on", this.#server.addr);
+    console.log(
+      "[supervisor] listening on",
+      (this.#server.addr as Deno.NetAddr).port,
+    );
   }
 
   get url() {
