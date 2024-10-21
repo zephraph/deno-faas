@@ -43,6 +43,9 @@ const server = Deno.serve(
     },
   },
   (req) => {
+    if (req.headers.get("X-Health-Check")) {
+      return new Response("OK", { status: 200 });
+    }
     let timeout: number = 0;
     try {
       timeout = setTimeout(() => {
