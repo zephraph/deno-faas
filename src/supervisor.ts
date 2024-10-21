@@ -1,3 +1,5 @@
+import { EventEmitter } from "node:events";
+
 interface WorkerOptions {
   name: string;
   code: string;
@@ -104,6 +106,7 @@ class Worker {
 export class DenoHttpSupervisor {
   #workers: Record<string, Worker>;
   #server: Deno.HttpServer;
+  #emitter = new EventEmitter();
 
   constructor() {
     this.#workers = {};
@@ -131,6 +134,10 @@ export class DenoHttpSupervisor {
     return Object.keys(this.#workers);
   }
 
+  on(event: "load", listener: (name: string, version: number) => void) {
+    return this.#emitter.on(event, listener);
+  }
+
   async load(name: string, code: string) {
     let oldWorker: Worker | undefined;
     if (name in this.#workers) {
@@ -145,6 +152,7 @@ export class DenoHttpSupervisor {
     if (success && newWorker.running) {
       oldWorker?.shutdown();
       this.#workers[name] = newWorker;
+      this.#emitter.emit("load", name, newWorker.version);
     } else if (!newWorker.running) {
       console.error("worker stopped unexpectedly", name);
       return false;
