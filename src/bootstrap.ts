@@ -70,4 +70,10 @@ globalThis.onerror = (event) => {
 
 Deno.addSignalListener("SIGINT", async () => {
   await server.shutdown();
+  Deno.exit(0);
+});
+
+Deno.addSignalListener("SIGTERM", async () => {
+  await server.shutdown();
+  Deno.exit(0);
 });
