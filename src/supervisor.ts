@@ -20,8 +20,8 @@ class Worker {
       {
         args: [
           "run",
+          "-i",
           "--rm",
-          "-it",
           `-p`,
           `${this.port}:8000`,
           "--cpus",
@@ -31,11 +31,18 @@ class Worker {
           "worker",
           code,
         ],
+        stderr: "piped",
         stdout: "piped",
       },
     ).spawn();
 
-    this.#process.status.then(() => {
+    this.#process.status.then((status) => {
+      console.log(
+        "[worker]",
+        `${this.name}@${this.version}`,
+        "stopped with",
+        status,
+      );
       this.#running = false;
     });
   }

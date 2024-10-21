@@ -150,4 +150,18 @@ app.get("/create", (c) => {
   );
 });
 
-export default app;
+const server = Deno.serve(app.fetch);
+
+Deno.addSignalListener("SIGINT", async () => {
+  console.log("SIGINT");
+  await server.shutdown();
+  await sv.shutdown();
+  Deno.exit(0);
+});
+
+Deno.addSignalListener("SIGTERM", async () => {
+  console.log("SIGTERM");
+  await server.shutdown();
+  await sv.shutdown();
+  Deno.exit(0);
+});
