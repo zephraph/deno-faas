@@ -43,13 +43,22 @@ const server = Deno.serve(
     },
   },
   (req) => {
+    let timeout: number = 0;
     try {
+      timeout = setTimeout(() => {
+        throw new Error("Timeout");
+      }, 60_000);
       return main(req);
     } catch (error) {
       if (error instanceof Deno.errors.NotCapable) {
         return new Response("Naughty", { status: 401 });
       }
+      if (error instanceof Error && error.message === "Timeout") {
+        return new Response("Timed out", { status: 408 });
+      }
       throw error;
+    } finally {
+      clearTimeout(timeout);
     }
   },
 );
