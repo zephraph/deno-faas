@@ -1,10 +1,18 @@
+interface WorkerOptions {
+  name: string;
+  code: string;
+  version: number;
+}
+
 class Worker {
   #process: Deno.ChildProcess;
   #running = true;
-  port: number;
+  name: string;
   version: number;
+  port: number;
 
-  constructor(public readonly name: string, code: string, version: number = 0) {
+  constructor({ name, code, version }: WorkerOptions) {
+    this.name = name;
     this.version = version;
     this.port = this.findFreePort();
     this.#process = new Deno.Command(
@@ -55,19 +63,23 @@ class Worker {
   }
 
   async waitUntilReady() {
+    const timeout = setTimeout(() => {
+      throw new Error("timeout");
+    }, 5000);
     while (this.#running) {
       try {
-        const server = Deno.listen({ port: this.port });
-        server.close();
-        await new Promise((resolve) => setTimeout(resolve, 20));
-        continue;
-      } catch (e) {
-        if (e instanceof Deno.errors.AddrInUse) {
-          console.log("[worker]", `${this.name}@${this.version}`, "is ready");
+        const res = await fetch(`http://localhost:${this.port}`, {
+          headers: {
+            "X-Health-Check": "true",
+          },
+        });
+        if (res.status === 200) {
           return true;
         }
-        console.error("[worker]", `${this.name}@${this.version}`, "errored", e);
-        throw e;
+      } catch (_) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      } finally {
+        clearTimeout(timeout);
       }
     }
     return false;
@@ -113,11 +125,17 @@ export class DenoHttpSupervisor {
     if (name in this.#workers) {
       oldWorker = this.#workers[name];
     }
-    const newWorker = new Worker(name, code, (oldWorker?.version ?? 0) + 1);
+    const newWorker = new Worker({
+      name,
+      code,
+      version: (oldWorker?.version ?? 0) + 1,
+    });
     const success = await newWorker.waitUntilReady();
     if (success && newWorker.running) {
       oldWorker?.shutdown();
       this.#workers[name] = newWorker;
+    } else {
+      console.error("failed to load", name);
     }
   }
 
