@@ -63,10 +63,11 @@ class Worker {
   }
 
   async waitUntilReady() {
+    let timedout = false;
     const timeout = setTimeout(() => {
-      throw new Error("timeout");
+      timedout = true;
     }, 5000);
-    while (this.#running) {
+    while (this.#running && !timedout) {
       try {
         const res = await fetch(`http://localhost:${this.port}`, {
           headers: {
@@ -74,14 +75,14 @@ class Worker {
           },
         });
         if (res.status === 200) {
+          clearTimeout(timeout);
           return true;
         }
       } catch (_) {
         await new Promise((resolve) => setTimeout(resolve, 50));
-      } finally {
-        clearTimeout(timeout);
       }
     }
+    clearTimeout(timeout);
     return false;
   }
 
@@ -134,9 +135,14 @@ export class DenoHttpSupervisor {
     if (success && newWorker.running) {
       oldWorker?.shutdown();
       this.#workers[name] = newWorker;
+    } else if (!newWorker.running) {
+      console.error("worker stopped unexpectedly", name);
+      return false;
     } else {
       console.error("failed to load", name);
+      return false;
     }
+    return true;
   }
 
   async shutdown() {
