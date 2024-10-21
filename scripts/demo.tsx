@@ -116,10 +116,18 @@ app.post("/create", async (c) => {
 
     console.log(response.data.choices[0].message?.content);
 
-    await sv.load(
+    const success = await sv.load(
       id,
       response.data.choices[0].message?.content as string,
     );
+    if (!success) {
+      c.status(500);
+      return c.html(
+        <Template>
+          <h1>Something went wrong</h1>
+        </Template>,
+      );
+    }
   }
   return c.html(
     <Template>
@@ -142,4 +150,18 @@ app.get("/create", (c) => {
   );
 });
 
-export default app;
+const server = Deno.serve(app.fetch);
+
+Deno.addSignalListener("SIGINT", async () => {
+  console.log("SIGINT");
+  await server.shutdown();
+  await sv.shutdown();
+  Deno.exit(0);
+});
+
+Deno.addSignalListener("SIGTERM", async () => {
+  console.log("SIGTERM");
+  await server.shutdown();
+  await sv.shutdown();
+  Deno.exit(0);
+});

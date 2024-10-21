@@ -43,6 +43,9 @@ const server = Deno.serve(
     },
   },
   (req) => {
+    if (req.headers.get("X-Health-Check")) {
+      return new Response("OK", { status: 200 });
+    }
     let timeout: number = 0;
     try {
       timeout = setTimeout(() => {
@@ -70,4 +73,10 @@ globalThis.onerror = (event) => {
 
 Deno.addSignalListener("SIGINT", async () => {
   await server.shutdown();
+  Deno.exit(0);
+});
+
+Deno.addSignalListener("SIGTERM", async () => {
+  await server.shutdown();
+  Deno.exit(0);
 });
