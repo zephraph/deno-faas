@@ -135,7 +135,10 @@ export class DenoHttpSupervisor {
   }
 
   on(event: "load", listener: (name: string, version: number) => void) {
-    return this.#emitter.on(event, listener);
+    this.#emitter.on(event, listener);
+    return () => {
+      this.#emitter.removeListener(event, listener)
+    }
   }
 
   async load(name: string, code: string) {
@@ -152,7 +155,7 @@ export class DenoHttpSupervisor {
     if (success && newWorker.running) {
       oldWorker?.shutdown();
       this.#workers[name] = newWorker;
-      this.#emitter.emit("load", name, newWorker.version);
+      this.#emitter.emit("load", name);
     } else if (!newWorker.running) {
       console.error("worker stopped unexpectedly", name);
       return false;
