@@ -123,8 +123,13 @@ app.post("/create", async (c) => {
   }
   return c.html(
     <Template>
-      <iframe src={`${sv.url}/${id}`} />
-      <PromptForm input={prompt} />
+      <div style={{ display: "flex", gap: "1rem" }}>
+        <iframe
+          style={{ width: "100%", height: "500px" }}
+          src={`${sv.url}/${id}`}
+        />
+        <PromptForm input={prompt} />
+      </div>
     </Template>,
   );
 });
