@@ -39,7 +39,8 @@ const Template: FC = ({ children }) => (
 
 const PromptForm: FC = ({ input }: { input?: string }) => {
   return (
-    <form action="/create" method="post">
+    <>
+    <form action="/create" method="post" onsubmit="return handleSubmit(this);">
       <textarea
         name="prompt"
         rows={4}
@@ -50,6 +51,16 @@ const PromptForm: FC = ({ input }: { input?: string }) => {
       </textarea>
       <button type="submit">Create</button>
     </form>
+    <script>{html`
+      function handleSubmit(form) {
+        const button = form.querySelector('button[type="submit"]');
+        button.disabled = true;
+        button.innerHTML = '<span class="spinner"></span> Creating...';
+        return true;
+      }
+    `}</script>
+    </>
+    
   );
 };
 
