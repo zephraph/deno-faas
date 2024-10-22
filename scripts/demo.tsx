@@ -40,27 +40,32 @@ const Template: FC = ({ children }) => (
 const PromptForm: FC = ({ input }: { input?: string }) => {
   return (
     <>
-    <form action="/create" method="post" onsubmit="return handleSubmit(this);">
-      <textarea
-        name="prompt"
-        rows={4}
-        cols={50}
-        placeholder="Enter your text here..."
+      <form
+        action="/create"
+        method="post"
+        onsubmit="return handleSubmit(this);"
       >
-        {input}
-      </textarea>
-      <button type="submit">Create</button>
-    </form>
-    <script>{html`
+        <textarea
+          name="prompt"
+          rows={4}
+          cols={50}
+          placeholder="Enter your text here..."
+        >
+          {input}
+        </textarea>
+        <button type="submit">Create</button>
+      </form>
+      <script>
+        {html`
       function handleSubmit(form) {
         const button = form.querySelector('button[type="submit"]');
         button.disabled = true;
         button.innerHTML = '<span class="spinner"></span> Creating...';
         return true;
       }
-    `}</script>
+    `}
+      </script>
     </>
-    
   );
 };
 
