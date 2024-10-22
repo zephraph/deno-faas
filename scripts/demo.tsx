@@ -1,6 +1,7 @@
-import { Configuration, OpenAIApi } from "npm:openai";
 import { Hono } from "npm:hono";
+import { html } from "npm:hono/html";
 import type { FC } from "npm:hono/jsx";
+import { Configuration, OpenAIApi } from "npm:openai";
 import { DenoHttpSupervisor } from "../src/supervisor.ts";
 
 const configuration = new Configuration({
@@ -66,12 +67,66 @@ app.get("/", (c) => {
             <button>create</button>
           </a>
         </h1>
+        {html`<script type="text/javascript">
+                window.onload = () => {
+                  let grid = document.querySelector(".grid");
+                  function subscribe(){
+                    try {
+                      let eventSource = new EventSource("/subscribe");
+                      eventSource.onopen = function () {
+                        console.log("Connection to server opened.");
+                      };
+                      eventSource.onmessage = function (event) {
+                        console.log("Data received:", event.data);
+                        const iframe = document.createElement("iframe");
+                        iframe.src = event.data
+                        grid.appendChild(iframe)
+                      };
+                      eventSource.onerror = function (event) {
+                        if (event.eventPhase == EventSource.CLOSED) {
+                          console.error("Connection was closed by the server.");
+                        } else {
+                          console.error("Error fetching data:", event);
+                        }
+                      };
+                    } catch (error) {
+                      console.error("Error initializing EventSource:", error);
+                    }
+                  };
+                  subscribe();
+                }
+              </script>`}
         <div class="grid">
           {sv.ids.map((id) => <Iframe id={id} />)}
         </div>
       </>
     </Template>,
   );
+});
+
+function subscribe() {
+  let disposable: () => void;
+  const body = new ReadableStream({
+    start(controller) {
+      disposable = sv.on("load", (name) => {
+        controller.enqueue(
+          new TextEncoder().encode(`data: ${sv.url}/${name}\n\n`),
+        );
+      });
+    },
+    cancel() {
+      disposable();
+    },
+  });
+  return body;
+}
+
+app.get("/subscribe", () => {
+  return new Response(subscribe(), {
+    headers: {
+      "Content-Type": "text/event-stream",
+    },
+  });
 });
 
 app.post("/create", async (c) => {
