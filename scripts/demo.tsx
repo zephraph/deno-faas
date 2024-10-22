@@ -54,7 +54,25 @@ const PromptForm: FC = ({ input }: { input?: string }) => {
 };
 
 const Iframe = ({ id }: { id: string }) => {
-  return <iframe src={`${sv.url}/${id}`} />;
+  return (
+    <a
+      href={`view/${id}`}
+      style={{
+        display: "block",
+        width: "100%",
+        outline: "2px solid #007bff",
+        padding: "5px",
+        margin: "5px",
+        borderRadius: "4px",
+        textDecoration: "none",
+        color: "inherit",
+      }}
+    >
+      <div style={{ pointerEvents: "none" }}>
+        <iframe src={`${sv.url}/${id}`} style={{width: "100%"}}/>
+      </div>
+    </a>
+  );
 };
 
 app.get("/", (c) => {
@@ -69,6 +87,32 @@ app.get("/", (c) => {
         </h1>
         {html`<script type="text/javascript">
                 window.onload = () => {
+                  function createIframeElement(src) {
+                    const id = src.split("/").pop()
+                    const a = document.createElement('a');
+                    a.href = \`view/$\{id\}\`;
+                    a.style.cssText = \`
+                      display: block;
+                      outline: 2px solid #007bff;
+                      padding: 5px;
+                      margin: 5px;
+                      border-radius: 4px;
+                      text-decoration: none;
+                      color: inherit;
+                    \`;
+
+                    const div = document.createElement('div');
+                    div.style.pointerEvents = 'none';
+
+                    const iframe = document.createElement('iframe');
+                    iframe.src = \`view/$\{id\}\`;
+
+                    div.appendChild(iframe);
+                    a.appendChild(div);
+
+                    return a;
+                  }
+
                   let grid = document.querySelector(".grid");
                   function subscribe(){
                     try {
@@ -78,8 +122,7 @@ app.get("/", (c) => {
                       };
                       eventSource.onmessage = function (event) {
                         console.log("Data received:", event.data);
-                        const iframe = document.createElement("iframe");
-                        iframe.src = event.data
+                        const iframe = createIframeElement(event.data)
                         grid.appendChild(iframe)
                       };
                       eventSource.onerror = function (event) {
@@ -209,6 +252,31 @@ app.get("/create", (c) => {
   return c.html(
     <Template>
       <PromptForm />
+    </Template>,
+  );
+});
+
+app.get("/view/:id", (c) => {
+  const id = c.req.param("id");
+  if (!sv.ids.includes(id)) {
+    c.status(404);
+    return c.html(
+      <Template>
+        <h1>404 - Not Found</h1>
+        <p>The requested ID does not exist.</p>
+      </Template>,
+    );
+  }
+  return c.html(
+    <Template>
+      <iframe
+        src={`${sv.url}/${id}`}
+        style={{
+          width: "100%",
+          height: "100vh",
+          border: "none",
+        }}
+      />
     </Template>,
   );
 });
