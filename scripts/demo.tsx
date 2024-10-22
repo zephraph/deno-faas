@@ -280,21 +280,11 @@ app.get("/view/:id", (c) => {
       <Template>
         <h1>404 - Not Found</h1>
         <p>The requested ID does not exist.</p>
+        <a href="/">Return Home</a>
       </Template>,
     );
   }
-  return c.html(
-    <Template>
-      <iframe
-        src={`${sv.url}/${id}`}
-        style={{
-          width: "100%",
-          height: "100vh",
-          border: "none",
-        }}
-      />
-    </Template>,
-  );
+  return fetch(`${sv.url}/${id}`);
 });
 
 const server = Deno.serve(app.fetch);
