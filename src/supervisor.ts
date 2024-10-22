@@ -137,8 +137,8 @@ export class DenoHttpSupervisor {
   on(event: "load", listener: (name: string, version: number) => void) {
     this.#emitter.on(event, listener);
     return () => {
-      this.#emitter.removeListener(event, listener)
-    }
+      this.#emitter.removeListener(event, listener);
+    };
   }
 
   async load(name: string, code: string) {

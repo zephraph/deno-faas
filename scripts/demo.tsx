@@ -104,16 +104,18 @@ app.get("/", (c) => {
   );
 });
 
-function subscribe () {
+function subscribe() {
   let disposable: () => void;
   const body = new ReadableStream({
     start(controller) {
       disposable = sv.on("load", (name) => {
-        controller.enqueue(new TextEncoder().encode(`data: ${sv.url}/${name}\n\n`));
-      })
+        controller.enqueue(
+          new TextEncoder().encode(`data: ${sv.url}/${name}\n\n`),
+        );
+      });
     },
     cancel() {
-      disposable()
+      disposable();
     },
   });
   return body;
