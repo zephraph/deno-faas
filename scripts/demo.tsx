@@ -69,7 +69,7 @@ const Iframe = ({ id }: { id: string }) => {
       }}
     >
       <div style={{ pointerEvents: "none" }}>
-        <iframe src={`${sv.url}/${id}`} style={{width: "100%"}}/>
+        <iframe src={`${sv.url}/${id}`} style={{ width: "100%" }} />
       </div>
     </a>
   );
