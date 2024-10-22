@@ -96,12 +96,15 @@ app.get("/", (c) => {
                   subscribe();
                 }
               </script>`}
-        <div class="grid" style={{
-          "grid-template-rows": "auto",
-          "grid-template-columns": "repeat(4, 1fr)",
-          "gap": "1rem 1rem",
-          "grid-auto-rows": "100px"
-        }}>
+        <div
+          class="grid"
+          style={{
+            "grid-template-rows": "auto",
+            "grid-template-columns": "repeat(4, 1fr)",
+            "gap": "1rem 1rem",
+            "grid-auto-rows": "100px",
+          }}
+        >
           {sv.ids.map((id) => <Iframe id={id} />)}
         </div>
       </>
