@@ -1,10 +1,9 @@
 console.log("test");
 
 // Inspired by but heavily modified from https://github.com/val-town/deno-http-worker/blob/main/deno-bootstrap/index.ts
-import { createModuleStore } from "./modules.ts";
+// import { createModuleStore } from "./modules.ts";
 
-console.log("modules", Deno.lstatSync("/app/data/modules"));
-const modules = await createModuleStore({ modulePath: "/app/data/modules" });
+// const modules = await createModuleStore({ modulePath: "/app/data/modules" });
 
 // {
 //   const oldLog = console.log;
@@ -47,6 +46,7 @@ const server = Deno.serve(
     if (moduleToLoad) {
       console.log("[bootstrap] loading module", moduleToLoad);
       try {
+        // @ts-ignore
         const moduleCode = await modules.load(moduleToLoad);
         console.log("[bootstrap] loaded code", moduleCode);
         if (!moduleCode) {

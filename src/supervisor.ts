@@ -6,12 +6,8 @@ import { Pool, type PoolFactory } from "npm:lightning-pool";
 const modules = await createModuleStore({ modulePath: "./data/modules" });
 
 const workerPoolFactory: PoolFactory<Worker> = {
-  async create() {
-    const worker = new Worker();
-    if (!await worker.healthCheck()) {
-      throw new Error("not ready");
-    }
-    return worker;
+  create() {
+    return new Worker();
   },
   destroy(worker) {
     worker.shutdown();
@@ -99,6 +95,7 @@ export class DenoHttpSupervisor {
   async shutdown() {
     console.log("[supervisor] shutting down");
     await this.#server.shutdown();
+    await this.#workerPool.closeAsync();
     for (const worker of Object.values(this.#activeWorkers)) {
       worker.shutdown();
     }
