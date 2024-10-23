@@ -1,6 +1,4 @@
-import brPromise from "npm:brotli-wasm";
-
-const brotli = await brPromise;
+console.log("test 123");
 
 const hash = (contentBytes: Uint8Array) =>
   crypto.subtle
@@ -18,7 +16,7 @@ export async function createModuleStore(ops: ModuleStoreOptions) {
   return new ModuleStore(kv, ops);
 }
 
-const DEFAULT_MODULE_PATH = "./store/modules";
+const DEFAULT_MODULE_PATH = "./data/modules";
 class ModuleStore {
   private cleanup: boolean;
   private modulePath: string;
@@ -38,33 +36,8 @@ class ModuleStore {
   async save(name: string, content: string) {
     const contentBytes = new TextEncoder().encode(content);
     const version = await hash(contentBytes);
-    await this.kv.set([name, version], brotli.compress(contentBytes));
+    await this.kv.set([name, version], content);
     return version;
-  }
-
-  /**
-   * Loads a brotli encoded module from the store.
-   * This is useful for directly serving the module over http
-   * without extra encoding.
-   *
-   * @param name The name of the module.
-   * @param version The version of the module.
-   * @returns The brotli encoded content of the module.
-   */
-  async loadEncoded(name: string, version?: string) {
-    if (version) {
-      const { value } = await this.kv.get<Uint8Array>(
-        [name, version],
-      );
-      return value;
-    }
-    const result = await this.kv.list<Uint8Array>({
-      prefix: [name],
-    }, {
-      limit: 1,
-    })
-      .next()!;
-    return result.value?.value ?? null;
   }
 
   /**
@@ -75,10 +48,30 @@ class ModuleStore {
    * @returns The content of the module.
    */
   async load(name: string, version?: string) {
-    const encoded = await this.loadEncoded(name, version);
-    return encoded
-      ? new TextDecoder().decode(brotli.decompress(encoded))
-      : null;
+    if (version) {
+      const { value } = await this.kv.get<string>(
+        [name, version],
+      );
+      return value;
+    }
+    const result = await this.kv.list<string>({
+      prefix: [name],
+    }, {
+      limit: 1,
+    })
+      .next()!;
+    return result.value?.value ?? null;
+  }
+
+  async has(name: string, version?: string) {
+    if (version) {
+      return await this.kv.get([name, version]) !== null;
+    } else {
+      for await (const _ of this.kv.list({ prefix: [name] }, { limit: 1 })) {
+        return true;
+      }
+      return false;
+    }
   }
 
   /**

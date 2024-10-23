@@ -1,19 +1,72 @@
 import { EventEmitter } from "node:events";
 import { Worker } from "./worker.ts";
+import { createModuleStore } from "./modules.ts";
+import { Pool, type PoolFactory } from "npm:lightning-pool";
+
+const modules = await createModuleStore({ modulePath: "./data/modules" });
+
+const workerPoolFactory: PoolFactory<Worker> = {
+  async create() {
+    const worker = new Worker();
+    if (!await worker.healthCheck()) {
+      throw new Error("not ready");
+    }
+    return worker;
+  },
+  destroy(worker) {
+    worker.shutdown();
+  },
+  reset(worker) {
+    worker.restart();
+  },
+  async validate(worker) {
+    await worker.healthCheck();
+  },
+};
+
+interface SupervisorOptions {
+  idleWorkers?: number;
+  maxWorkers?: number;
+  workerTimeout?: number;
+}
 
 export class DenoHttpSupervisor {
-  #workers: Record<string, Worker>;
+  #workerPool: Pool<Worker>;
+
+  #activeWorkers: Record<string, Worker> = {};
   #server: Deno.HttpServer;
   #emitter = new EventEmitter();
 
-  constructor() {
-    this.#workers = {};
-    this.#server = Deno.serve({ port: 0 }, (req) => {
+  constructor(opts: SupervisorOptions = {}) {
+    this.#workerPool = new Pool(workerPoolFactory, {
+      max: opts.maxWorkers ?? 2,
+      min: opts.idleWorkers ?? 1,
+      minIdle: opts.idleWorkers ?? 1,
+      acquireMaxRetries: 10,
+      acquireRetryWait: 20,
+    });
+
+    this.#workerPool.on("acquire", (worker) => {
+      console.log("[pool] acquired", worker.name);
+      this.#activeWorkers[worker.name] = worker;
+    });
+
+    this.#workerPool.on("return", (worker) => {
+      console.log("[pool] return", worker.name);
+      delete this.#activeWorkers[worker.name];
+    });
+
+    this.#workerPool.start();
+
+    this.#server = Deno.serve({ port: 0 }, async (req) => {
       const url = new URL(req.url);
       const name = url.pathname.slice(1);
-      if (name in this.#workers) {
-        const worker = this.#workers[name];
+      if (name in this.#activeWorkers) {
+        const worker = this.#activeWorkers[name];
         return worker.run(req);
+      } else if (await modules.has(name)) {
+        const worker = await this.#workerPool.acquire();
+        return worker.run(req, name);
       }
       return Response.json({ error: "Not found" }, { status: 404 });
     });
@@ -29,7 +82,7 @@ export class DenoHttpSupervisor {
   }
 
   get ids() {
-    return Object.keys(this.#workers);
+    return Object.keys(this.#activeWorkers);
   }
 
   on(event: "load", listener: (name: string, version: number) => void) {
@@ -39,35 +92,14 @@ export class DenoHttpSupervisor {
     };
   }
 
-  async load(name: string, code: string) {
-    let oldWorker: Worker | undefined;
-    if (name in this.#workers) {
-      oldWorker = this.#workers[name];
-    }
-    const newWorker = new Worker({
-      name,
-      code,
-      version: (oldWorker?.version ?? 0) + 1,
-    });
-    const success = await newWorker.waitUntilReady();
-    if (success && newWorker.running) {
-      oldWorker?.shutdown();
-      this.#workers[name] = newWorker;
-      this.#emitter.emit("load", name);
-    } else if (!newWorker.running) {
-      console.error("worker stopped unexpectedly", name);
-      return false;
-    } else {
-      console.error("failed to load", name);
-      return false;
-    }
-    return true;
+  load(name: string, code: string) {
+    return modules.save(name, code);
   }
 
   async shutdown() {
     console.log("[supervisor] shutting down");
     await this.#server.shutdown();
-    for (const worker of Object.values(this.#workers)) {
+    for (const worker of Object.values(this.#activeWorkers)) {
       worker.shutdown();
     }
   }

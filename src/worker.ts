@@ -1,40 +1,53 @@
-interface WorkerOptions {
-  name: string;
-  code: string;
-  version: number;
+import { EventEmitter } from "node:events";
+interface WorkerEvents {
+  listening: {
+    port: number;
+  };
+  loading: {
+    module: string;
+  };
+  shutdown: {
+    code: number;
+  };
 }
 
 export class Worker {
   #process: Deno.ChildProcess;
-  #running = true;
-  name: string;
-  version: number;
+  #running = false;
+  #emitter = new EventEmitter();
+
+  name: string = "";
+  version: number = 0;
   port: number;
 
-  constructor({ name, code, version }: WorkerOptions) {
-    this.name = name;
-    this.version = version;
+  constructor() {
     this.port = this.findFreePort();
+    this.#process = this.start();
+  }
+
+  start() {
     this.#process = new Deno.Command(
       "docker",
       {
         args: [
           "run",
           "-i",
-          "--rm",
+          // "--rm",
+          "-v",
+          "./data:/app/data",
           `-p`,
           `${this.port}:8000`,
           "--cpus",
           "0.2",
           "--memory",
           "200m",
-          "worker",
-          code,
+          "worker:latest",
         ],
-        stderr: "piped",
-        stdout: "piped",
+        // stderr: "piped",
+        // stdout: "piped",
       },
     ).spawn();
+    this.#running = true;
 
     this.#process.status.then(({ code }) => {
       console.log(
@@ -45,13 +58,15 @@ export class Worker {
       );
       this.#running = false;
     });
+
+    return this.#process;
   }
 
   get running() {
     return this.#running;
   }
 
-  run(req: Request) {
+  run(req: Request, module?: string) {
     const url = new URL(req.url);
     const newReq = new Request(
       `http://localhost:${this.port}${url.pathname}`,
@@ -59,6 +74,11 @@ export class Worker {
     );
     const reqId = crypto.randomUUID();
     newReq.headers.set("x-req-id", reqId);
+    if (module) {
+      newReq.headers.set("x-load-module", module);
+    } else {
+      newReq.headers.delete("x-load-module");
+    }
     return fetch(newReq);
   }
 
@@ -69,28 +89,24 @@ export class Worker {
     return port;
   }
 
-  async waitUntilReady() {
-    let timedout = false;
-    const timeout = setTimeout(() => {
-      timedout = true;
-    }, 5000);
-    while (this.#running && !timedout) {
-      try {
-        const res = await fetch(`http://localhost:${this.port}`, {
-          headers: {
-            "X-Health-Check": "true",
-          },
-        });
-        if (res.status === 200) {
-          clearTimeout(timeout);
-          return true;
-        }
-      } catch (_) {
-        await new Promise((resolve) => setTimeout(resolve, 50));
-      }
+  /**
+   * @returns true if the worker is healthy, false otherwise
+   */
+  async healthCheck() {
+    if (!this.#running) {
+      return false;
     }
-    clearTimeout(timeout);
-    return false;
+    const res = await fetch(`http://localhost:${this.port}`, {
+      headers: {
+        "X-Health-Check": "true",
+      },
+    });
+    return res.ok;
+  }
+
+  restart() {
+    this.shutdown();
+    this.start();
   }
 
   shutdown() {
@@ -98,5 +114,19 @@ export class Worker {
     if (this.#running) {
       this.#process.kill("SIGINT");
     }
+  }
+
+  on<E extends keyof WorkerEvents>(
+    event: E,
+    listener: (payload: WorkerEvents[E]) => void,
+  ) {
+    this.#emitter.on(event, listener);
+  }
+
+  once<E extends keyof WorkerEvents>(
+    event: E,
+    listener: (payload: WorkerEvents[E]) => void,
+  ) {
+    this.#emitter.once(event, listener);
   }
 }

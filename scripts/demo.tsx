@@ -238,18 +238,10 @@ app.post("/create", async (c) => {
 
     console.log(response.data.choices[0].message?.content);
 
-    const success = await sv.load(
+    await sv.load(
       id,
       response.data.choices[0].message?.content as string,
     );
-    if (!success) {
-      c.status(500);
-      return c.html(
-        <Template>
-          <h1>Something went wrong</h1>
-        </Template>,
-      );
-    }
   }
   return c.html(
     <Template>
@@ -287,7 +279,7 @@ app.get("/view/:id", (c) => {
   return fetch(`${sv.url}/${id}`);
 });
 
-const server = Deno.serve(app.fetch);
+const server = Deno.serve({ reusePort: true }, app.fetch);
 
 Deno.addSignalListener("SIGINT", async () => {
   console.log("SIGINT");
