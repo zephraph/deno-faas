@@ -90,7 +90,8 @@ export class DenoHttpSupervisor {
   async shutdown() {
     console.log("[supervisor] shutting down");
     await this.#server.shutdown();
-    await this.#workerPool.closeAsync();
+    // Wait for workers to shutdown gracefully, but close it forcefully after 3 seconds
+    await this.#workerPool.closeAsync(3000);
     console.log("[supervisor] shutdown complete");
   }
 }

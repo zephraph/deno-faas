@@ -80,6 +80,12 @@ export class WorkerPool extends Pool<Worker> {
     });
     this.on("create", (worker) => {
       console.log("[worker-pool] created worker", worker.id);
+      // If the worker shuts down and we've got a hold on it, ensure it's released
+      worker.on("shutdown", () => {
+        if (this.isAcquired(worker)) {
+          this.release(worker);
+        }
+      });
     });
     this.on("create-error", (error) => {
       console.error("[worker-pool] create error", error);
@@ -96,6 +102,7 @@ export class WorkerPool extends Pool<Worker> {
       console.log("[worker-pool] return worker", worker.id);
     });
     this.on("destroy", (worker) => {
+      worker.shutdown();
       console.log("[worker-pool] destroy worker", worker.id);
     });
     this.on("destroy-error", (error, worker) => {

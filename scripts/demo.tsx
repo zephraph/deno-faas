@@ -282,14 +282,14 @@ app.get("/view/:id", (c) => {
 const server = Deno.serve({ reusePort: true }, app.fetch);
 
 Deno.addSignalListener("SIGINT", async () => {
-  console.log("SIGINT");
+  console.log("[DEMO] SIGINT");
   await server.shutdown();
   await sv.shutdown();
   Deno.exit(0);
 });
 
 Deno.addSignalListener("SIGTERM", async () => {
-  console.log("SIGTERM");
+  console.log("[DEMO] SIGTERM");
   await server.shutdown();
   await sv.shutdown();
   Deno.exit(0);

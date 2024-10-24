@@ -122,6 +122,7 @@ export class Worker {
     if (this.#running) {
       this.#process?.kill("SIGINT");
     }
+    this.#emitter.removeAllListeners();
     return this.start();
   }
 
@@ -130,6 +131,7 @@ export class Worker {
     if (this.#running) {
       this.#process?.kill("SIGINT");
     }
+    this.#emitter.removeAllListeners();
     try {
       await Deno.remove(`./data/workers/${this.id}`, { recursive: true });
     } catch (e) {
