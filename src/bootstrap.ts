@@ -1,28 +1,8 @@
-console.log("test");
-
 // Inspired by but heavily modified from https://github.com/val-town/deno-http-worker/blob/main/deno-bootstrap/index.ts
-// import { createModuleStore } from "./modules.ts";
+import { Mutex } from "./mutex.ts";
 
-// const modules = await createModuleStore({ modulePath: "/app/data/modules" });
+const moduleLoadMutex = new Mutex();
 
-// {
-//   const oldLog = console.log;
-//   const oldInfo = console.info;
-//   const oldWarn = console.warn;
-//   const oldError = console.error;
-//   console.log = (...data) =>
-//     oldLog(`LOG  [${new Date().toISOString()}]`, ...data);
-//   console.info = (...data) =>
-//     oldInfo(`INFO [${new Date().toISOString()}]`, ...data);
-//   console.warn = (...data) =>
-//     oldWarn(`WARN [${new Date().toISOString()}]`, ...data);
-//   console.error = (...data) =>
-//     oldError(`ERROR [${new Date().toISOString()}]`, ...data);
-//   // Ensure console can't be further modified
-//   Object.freeze(console);
-// }
-
-// This holds the user's code and should only be set once
 let userCode: unknown;
 
 const server = Deno.serve(
@@ -41,20 +21,20 @@ const server = Deno.serve(
     // SECURITY: This should be hardened. We don't want end users to be able
     // to overwrite deployed code with their own.
     const moduleToLoad = req.headers.get("X-Load-Module");
-    // TODO: This shouldn't happen concurrently. Only one http call should load
-    // a module. We need a special mutex here.
     if (moduleToLoad) {
       console.log("[bootstrap] loading module", moduleToLoad);
       try {
-        // @ts-ignore
-        const moduleCode = await modules.load(moduleToLoad);
-        console.log("[bootstrap] loaded code", moduleCode);
+        const moduleCode = await Deno.readTextFile(moduleToLoad);
+        console.log("[bootstrap] read code", moduleCode);
         if (!moduleCode) {
           return new Response("Module not found", { status: 404 });
         }
-        userCode =
-          (await import(`data:text/tsx,${encodeURIComponent(moduleCode)}`))
-            .default;
+        await moduleLoadMutex.withLock(async () => {
+          userCode =
+            (await import(`data:text/tsx,${encodeURIComponent(moduleCode)}`))
+              .default;
+          console.log("[bootstrap] loaded code", userCode);
+        });
       } catch (error) {
         userCode = undefined;
         return new Response(`Failed loading user code: ${error}`, {
