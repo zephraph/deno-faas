@@ -72,6 +72,7 @@ const PromptForm: FC = ({ input }: { input?: string }) => {
 const Iframe = ({ id }: { id: string }) => {
   return (
     <a
+      id={id}
       href={`/view/${id}`}
       style={{
         display: "block",
@@ -84,7 +85,7 @@ const Iframe = ({ id }: { id: string }) => {
         color: "inherit",
       }}
     >
-      <div style={{ pointerEvents: "none" }}>
+      <div style={{ pointerEvents: "none", width: "100%" }}>
         <iframe src={`/view/${id}`} style={{ width: "100%" }} />
       </div>
     </a>
@@ -107,6 +108,7 @@ app.get("/", (c) => {
                     const id = src.split("/").pop()
                     const a = document.createElement('a');
                     a.href = \`view/$\{id\}\`;
+                    a.id = id;
                     a.style.cssText = \`
                       display: block;
                       outline: 2px solid #007bff;
@@ -122,6 +124,7 @@ app.get("/", (c) => {
 
                     const iframe = document.createElement('iframe');
                     iframe.src = \`view/$\{id\}\`;
+                    iframe.style.width = "100%";
 
                     div.appendChild(iframe);
                     a.appendChild(div);
@@ -138,8 +141,16 @@ app.get("/", (c) => {
                       };
                       eventSource.onmessage = function (event) {
                         console.log("Data received:", event.data);
-                        const iframe = createIframeElement(event.data)
-                        grid.appendChild(iframe)
+                        const id = event.data.split("/").pop();
+                        const existingIframe = document.getElementById(id);
+
+                        const iframe = createIframeElement(event.data);
+
+                        if (existingIframe) {
+                          existingIframe.replaceWith(iframe);
+                        } else {
+                          grid.appendChild(iframe);
+                        }
                       };
                       eventSource.onerror = function (event) {
                         if (event.eventPhase == EventSource.CLOSED) {
