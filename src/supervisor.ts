@@ -15,7 +15,7 @@ export class DenoHttpSupervisor {
 
   constructor(opts: SupervisorOptions = {}) {
     this.#workerPool = new WorkerPool({
-      max: opts.maxWorkers ?? 2,
+      max: opts.maxWorkers ?? 30,
       min: opts.idleWorkers ?? 1,
       minIdle: opts.idleWorkers ?? 1,
       acquireMaxRetries: 10,
