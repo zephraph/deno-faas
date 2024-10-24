@@ -279,18 +279,23 @@ app.get("/view/:id", (c) => {
   return fetch(`${sv.url}/${id}`);
 });
 
-const server = Deno.serve({ reusePort: true }, app.fetch);
+const serverAbortController = new AbortController();
+const server = Deno.serve({
+  reusePort: true,
+  signal: serverAbortController.signal,
+}, app.fetch);
 
-Deno.addSignalListener("SIGINT", async () => {
-  console.log("[DEMO] SIGINT");
-  await server.shutdown();
+const shutdown = (signal: string) => async () => {
+  console.log(`[DEMO] ${signal}`);
   await sv.shutdown();
+  const serverTimeout = setTimeout(() => {
+    serverAbortController.abort();
+    Deno.exit(1);
+  }, 3000);
+  await server.shutdown();
+  clearTimeout(serverTimeout);
   Deno.exit(0);
-});
+};
 
-Deno.addSignalListener("SIGTERM", async () => {
-  console.log("[DEMO] SIGTERM");
-  await server.shutdown();
-  await sv.shutdown();
-  Deno.exit(0);
-});
+Deno.addSignalListener("SIGINT", shutdown("SIGINT"));
+Deno.addSignalListener("SIGTERM", shutdown("SIGTERM"));
