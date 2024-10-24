@@ -51,6 +51,7 @@ export class Worker {
           "200m",
           "worker:latest",
         ],
+        stdin: "piped",
       },
     ).spawn();
     this.#running = true;
