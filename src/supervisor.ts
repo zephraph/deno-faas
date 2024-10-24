@@ -1,6 +1,7 @@
 import { EventEmitter } from "node:events";
 import { WorkerPool } from "./worker-pool.ts";
 import { createModuleStore } from "./modules.ts";
+import { resolve as resolvePath } from "node:path";
 
 const modules = await createModuleStore();
 
@@ -48,9 +49,9 @@ export class DenoHttpSupervisor {
         this.#workerPool.setWorkerActive(worker);
         try {
           // Make the module available to the worker
-          await Deno.symlink(
-            `./data/modules/${version}`,
-            `./data/workers/${worker.id}`,
+          await Deno.link(
+            resolvePath(`./data/modules/${version}`),
+            resolvePath(`./data/workers/${worker.id}/${version}`),
           );
         } catch (error) {
           if (!(error instanceof Deno.errors.AlreadyExists)) {

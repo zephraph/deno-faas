@@ -33,7 +33,7 @@ export class Worker {
   }
 
   async start() {
-    await Deno.mkdir(`./data/${this.id}`, { recursive: true });
+    await Deno.mkdir(`./data/workers/${this.id}`, { recursive: true });
     this.#process = new Deno.Command(
       "docker",
       {

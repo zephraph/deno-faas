@@ -1,5 +1,6 @@
 // Inspired by but heavily modified from https://github.com/val-town/deno-http-worker/blob/main/deno-bootstrap/index.ts
 import { Mutex } from "./mutex.ts";
+import { join } from "node:path";
 
 const moduleLoadMutex = new Mutex();
 
@@ -24,7 +25,9 @@ const server = Deno.serve(
     if (moduleToLoad) {
       console.log("[bootstrap] loading module", moduleToLoad);
       try {
-        const moduleCode = await Deno.readTextFile(moduleToLoad);
+        const moduleCode = await Deno.readTextFile(
+          join("/app/data", moduleToLoad),
+        );
         console.log("[bootstrap] read code", moduleCode);
         if (!moduleCode) {
           return new Response("Module not found", { status: 404 });
