@@ -1,4 +1,7 @@
-console.log("test 123");
+import { join } from "node:path";
+
+const DEFAULT_MODULE_PATH = "./data/modules";
+const KV_FILE = "kv.sqlite";
 
 const hash = (contentBytes: Uint8Array) =>
   crypto.subtle
@@ -11,12 +14,13 @@ interface ModuleStoreOptions {
   cleanup?: boolean;
 }
 
-export async function createModuleStore(ops: ModuleStoreOptions) {
-  const kv = await Deno.openKv(ops.modulePath ?? DEFAULT_MODULE_PATH);
+export async function createModuleStore(ops: ModuleStoreOptions = {}) {
+  const modulePath = ops.modulePath ?? DEFAULT_MODULE_PATH;
+  await Deno.mkdir(modulePath, { recursive: true });
+  const kv = await Deno.openKv(join(modulePath, KV_FILE));
   return new ModuleStore(kv, ops);
 }
 
-const DEFAULT_MODULE_PATH = "./data/modules";
 class ModuleStore {
   private cleanup: boolean;
   private modulePath: string;
@@ -24,6 +28,13 @@ class ModuleStore {
   constructor(private readonly kv: Deno.Kv, ops: ModuleStoreOptions) {
     this.cleanup = ops.cleanup ?? false;
     this.modulePath = ops.modulePath ?? DEFAULT_MODULE_PATH;
+  }
+
+  /**
+   * Gets the latest content hash version of a module from its name
+   */
+  async lookupVersion(name: string) {
+    return (await this.kv.get<string>([name])).value;
   }
 
   /**
@@ -36,7 +47,8 @@ class ModuleStore {
   async save(name: string, content: string) {
     const contentBytes = new TextEncoder().encode(content);
     const version = await hash(contentBytes);
-    await this.kv.set([name, version], content);
+    Deno.writeTextFile(join(this.modulePath, version), content);
+    await this.kv.set([name], version);
     return version;
   }
 
@@ -44,34 +56,29 @@ class ModuleStore {
    * Loads a module from the store.
    *
    * @param name The name of the module.
-   * @param version The version of the module.
    * @returns The content of the module.
    */
-  async load(name: string, version?: string) {
-    if (version) {
-      const { value } = await this.kv.get<string>(
-        [name, version],
-      );
-      return value;
+  async loadByName(name: string) {
+    const version = await this.lookupVersion(name);
+    if (!version) {
+      return null;
     }
-    const result = await this.kv.list<string>({
-      prefix: [name],
-    }, {
-      limit: 1,
-    })
-      .next()!;
-    return result.value?.value ?? null;
+    return this.loadByVersion(version);
   }
 
-  async has(name: string, version?: string) {
-    if (version) {
-      return await this.kv.get([name, version]) !== null;
-    } else {
-      for await (const _ of this.kv.list({ prefix: [name] }, { limit: 1 })) {
-        return true;
-      }
+  loadByVersion(version: string) {
+    return Deno.readTextFile(join(this.modulePath, version));
+  }
+
+  /**
+   * Checks if a module exists by name.
+   */
+  async has(name: string) {
+    const version = await this.lookupVersion(name);
+    if (!version) {
       return false;
     }
+    return (await Deno.lstat(join(this.modulePath, version))).isFile;
   }
 
   /**
@@ -82,7 +89,7 @@ class ModuleStore {
   close() {
     this.kv.close();
     if (this.cleanup) {
-      Deno.removeSync(this.modulePath);
+      Deno.removeSync(this.modulePath, { recursive: true });
     }
   }
 
