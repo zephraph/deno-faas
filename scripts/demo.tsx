@@ -266,17 +266,17 @@ app.get("/create", (c) => {
 
 app.get("/view/:id", (c) => {
   const id = c.req.param("id");
-  if (!sv.ids.includes(id)) {
-    c.status(404);
-    return c.html(
-      <Template>
-        <h1>404 - Not Found</h1>
-        <p>The requested ID does not exist.</p>
-        <a href="/">Return Home</a>
-      </Template>,
-    );
-  }
-  return fetch(`${sv.url}/${id}`);
+  return fetch(`${sv.url}/${id}`).then((res) =>
+    res.status === 404
+      ? c.html(
+        <Template>
+          <h1>404 - Not Found</h1>
+          <p>The requested ID does not exist.</p>
+          <a href="/">Return Home</a>
+        </Template>,
+      )
+      : res
+  );
 });
 
 const serverAbortController = new AbortController();
