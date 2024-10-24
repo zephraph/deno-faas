@@ -1,24 +1,8 @@
 import { EventEmitter } from "node:events";
-import { Worker } from "./worker.ts";
+import { WorkerPool } from "./worker-pool.ts";
 import { createModuleStore } from "./modules.ts";
-import { Pool, type PoolFactory } from "npm:lightning-pool";
 
 const modules = await createModuleStore();
-
-const workerPoolFactory: PoolFactory<Worker> = {
-  create() {
-    return new Worker();
-  },
-  destroy(worker) {
-    worker.shutdown();
-  },
-  reset(worker) {
-    worker.restart();
-  },
-  async validate(worker) {
-    await worker.healthCheck();
-  },
-};
 
 interface SupervisorOptions {
   idleWorkers?: number;
@@ -27,14 +11,12 @@ interface SupervisorOptions {
 }
 
 export class DenoHttpSupervisor {
-  #workerPool: Pool<Worker>;
-
-  #activeWorkers: Record<string, Worker> = {};
+  #workerPool: WorkerPool;
   #server: Deno.HttpServer;
   #emitter = new EventEmitter();
 
   constructor(opts: SupervisorOptions = {}) {
-    this.#workerPool = new Pool(workerPoolFactory, {
+    this.#workerPool = new WorkerPool({
       max: opts.maxWorkers ?? 2,
       min: opts.idleWorkers ?? 1,
       minIdle: opts.idleWorkers ?? 1,
@@ -42,23 +24,17 @@ export class DenoHttpSupervisor {
       acquireRetryWait: 20,
     });
 
-    this.#workerPool.on("acquire", (worker) => {
-      console.log("[pool] acquired", worker.name);
-      this.#activeWorkers[worker.name] = worker;
-    });
-
-    this.#workerPool.on("return", (worker) => {
-      console.log("[pool] return", worker.name);
-      delete this.#activeWorkers[worker.name];
-    });
-
     this.#workerPool.start();
+
+    // Ensure the workers directory exists
+    Deno.mkdirSync("./data/workers", { recursive: true });
 
     this.#server = Deno.serve({ port: 0 }, async (req) => {
       const url = new URL(req.url);
       const moduleName = url.pathname.slice(1);
-      if (moduleName in this.#activeWorkers) {
-        const worker = this.#activeWorkers[moduleName];
+      console.log("[supervisor] request for", moduleName);
+      if (moduleName in this.#workerPool.activeWorkers) {
+        const worker = this.#workerPool.activeWorkers[moduleName];
         return worker.run(req);
       } else if (await modules.has(moduleName)) {
         const [worker, version] = await Promise.all([
@@ -68,11 +44,19 @@ export class DenoHttpSupervisor {
         if (!version) {
           return Response.json({ error: "Not found" }, { status: 404 });
         }
-        // Make the module available to the worker
-        await Deno.link(
-          `./data/modules/${version}`,
-          `./data/workers/${worker.id}/${version}`,
-        );
+        worker.module = moduleName;
+        this.#workerPool.setWorkerActive(worker);
+        try {
+          // Make the module available to the worker
+          await Deno.symlink(
+            `./data/modules/${version}`,
+            `./data/workers/${worker.id}`,
+          );
+        } catch (error) {
+          if (!(error instanceof Deno.errors.AlreadyExists)) {
+            throw new Error(`Failed to share module with worker: ${error}`);
+          }
+        }
         return worker.run(req, version);
       }
       return Response.json({ error: "Not found" }, { status: 404 });
@@ -89,7 +73,7 @@ export class DenoHttpSupervisor {
   }
 
   get ids() {
-    return Object.keys(this.#activeWorkers);
+    return this.#workerPool.activeWorkerKeys;
   }
 
   on(event: "load", listener: (name: string, version: number) => void) {
@@ -107,8 +91,6 @@ export class DenoHttpSupervisor {
     console.log("[supervisor] shutting down");
     await this.#server.shutdown();
     await this.#workerPool.closeAsync();
-    for (const worker of Object.values(this.#activeWorkers)) {
-      worker.shutdown();
-    }
+    console.log("[supervisor] shutdown complete");
   }
 }

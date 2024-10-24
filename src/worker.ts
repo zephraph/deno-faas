@@ -22,8 +22,14 @@ export class Worker {
   module: string | null = null;
   port: number;
 
-  constructor() {
+  private constructor() {
     this.port = this.findFreePort();
+  }
+
+  static async create() {
+    const worker = new Worker();
+    await worker.start();
+    return worker;
   }
 
   async start() {
@@ -72,13 +78,16 @@ export class Worker {
       this.#emit("loading", { module });
     }
     const url = new URL(req.url);
+    // Remove the module address from the path, but preserve whatever else may be there
+    const newPath = url.pathname.split("/").slice(2).join("/");
     const newReq = new Request(
-      `http://localhost:${this.port}${url.pathname}`,
+      `http://localhost:${this.port}/${newPath}`,
       req,
     );
     const reqId = crypto.randomUUID();
     newReq.headers.set("x-req-id", reqId);
     if (module) {
+      console.log("[worker]", `${this.id}`, "loading module", module);
       newReq.headers.set("x-load-module", module);
     } else {
       newReq.headers.delete("x-load-module");
@@ -120,7 +129,15 @@ export class Worker {
     if (this.#running) {
       this.#process?.kill("SIGINT");
     }
-    await Deno.remove(`./data/workers/${this.id}`, { recursive: true });
+    try {
+      await Deno.remove(`./data/workers/${this.id}`, { recursive: true });
+    } catch (e) {
+      if (e instanceof Deno.errors.NotFound) {
+        // Nothing to clean up
+        return;
+      }
+      throw e;
+    }
   }
 
   #emit<E extends keyof WorkerEvents>(
