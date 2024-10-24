@@ -47,7 +47,7 @@ class ModuleStore {
   async save(name: string, content: string) {
     const contentBytes = new TextEncoder().encode(content);
     const version = await hash(contentBytes);
-    Deno.writeTextFile(join(this.modulePath, version), content);
+    await Deno.writeTextFile(join(this.modulePath, version), content);
     await this.kv.set([name], version);
     return version;
   }
