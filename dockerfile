@@ -11,4 +11,4 @@ RUN mkdir -p /app/data
 # Set the volume
 VOLUME /app/data
 
-ENTRYPOINT ["deno", "run", "--no-prompt", "--allow-net", "--deny-net", "localhost", "--allow-read", "/app/data", "bootstrap.ts"]
+ENTRYPOINT ["deno", "run", "--no-prompt", "--allow-net", "--deny-net=localhost", "--allow-read=/app/data", "bootstrap.ts"]
