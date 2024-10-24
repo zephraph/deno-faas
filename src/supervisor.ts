@@ -1,9 +1,6 @@
 import { EventEmitter } from "node:events";
 import { WorkerPool } from "./worker-pool.ts";
-import { createModuleStore } from "./modules.ts";
-import { resolve as resolvePath } from "node:path";
-
-const modules = await createModuleStore();
+import { Module, modules } from "./modules.ts";
 
 interface SupervisorOptions {
   idleWorkers?: number;
@@ -34,33 +31,19 @@ export class DenoHttpSupervisor {
       const url = new URL(req.url);
       const moduleName = url.pathname.slice(1);
       console.log("[supervisor] request for", moduleName);
+      const module = await Module.fromName(moduleName);
+
+      if (!module) {
+        return Response.json({ error: "Not found" }, { status: 404 });
+      }
+
       if (moduleName in this.#workerPool.activeWorkers) {
         const worker = this.#workerPool.activeWorkers[moduleName];
-        return worker.run(req);
-      } else if (await modules.has(moduleName)) {
-        const [worker, version] = await Promise.all([
-          this.#workerPool.acquire(),
-          modules.lookupVersion(moduleName),
-        ]);
-        if (!version) {
-          return Response.json({ error: "Not found" }, { status: 404 });
-        }
-        worker.module = moduleName;
-        this.#workerPool.setWorkerActive(worker);
-        try {
-          // Make the module available to the worker
-          await Deno.link(
-            resolvePath(`./data/modules/${version}`),
-            resolvePath(`./data/workers/${worker.name}/${version}`),
-          );
-        } catch (error) {
-          if (!(error instanceof Deno.errors.AlreadyExists)) {
-            throw new Error(`Failed to share module with worker: ${error}`);
-          }
-        }
-        return worker.run(req, version);
+        return worker.run(req, module);
       }
-      return Response.json({ error: "Not found" }, { status: 404 });
+
+      const worker = await this.#workerPool.acquire();
+      return worker.run(req, module);
     });
     console.log(
       "[supervisor] listening on",
@@ -84,8 +67,9 @@ export class DenoHttpSupervisor {
     };
   }
 
-  load(name: string, code: string) {
-    return modules.save(name, code);
+  async load(name: string, code: string) {
+    await modules.save(name, code);
+    this.#emitter.emit("load", name);
   }
 
   async shutdown() {

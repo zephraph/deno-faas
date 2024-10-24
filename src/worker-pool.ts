@@ -1,3 +1,4 @@
+import type { Module } from "./modules.ts";
 import { Worker } from "./worker.ts";
 import {
   Pool,
@@ -50,6 +51,7 @@ export interface WorkerPoolEvents {
 }
 
 export class WorkerPool extends Pool<Worker> {
+  /** Active workers by module name */
   #activeWorkers: Record<string, Worker> = {};
 
   get activeWorkerKeys() {
@@ -61,15 +63,9 @@ export class WorkerPool extends Pool<Worker> {
     return Object.freeze({ ...this.#activeWorkers });
   }
 
-  setWorkerActive(worker: Worker) {
-    if (worker.module) {
-      console.log("[worker-pool] set worker active", worker.module);
-      this.#activeWorkers[worker.module] = worker;
-    } else {
-      throw new Error(
-        "[worker-pool] setWorkerActive called with worker without module",
-      );
-    }
+  private setWorkerActive(worker: Worker, module: Module) {
+    console.log("[worker-pool] set worker active", module);
+    this.#activeWorkers[module.name] = worker;
   }
 
   constructor(opts: PoolConfiguration) {
@@ -86,6 +82,10 @@ export class WorkerPool extends Pool<Worker> {
           this.release(worker);
         }
       });
+
+      worker.on("loading", ({ module }) => {
+        this.setWorkerActive(worker, module);
+      });
     });
     this.on("create-error", (error) => {
       console.error("[worker-pool] create error", error);
@@ -95,7 +95,8 @@ export class WorkerPool extends Pool<Worker> {
     });
     this.on("return", (worker) => {
       if (worker.module) {
-        delete this.#activeWorkers[worker.module];
+        delete this.#activeWorkers[worker.module.name];
+        worker.shutdown();
       } else {
         console.warn(
           "[worker-pool] worker returned without module",

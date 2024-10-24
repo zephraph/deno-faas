@@ -3,6 +3,20 @@ import { join } from "node:path";
 const DEFAULT_MODULE_PATH = "./data/modules";
 const KV_FILE = "kv.sqlite";
 
+export class Module {
+  constructor(public readonly name: string, public version: string) {}
+  toString() {
+    return `${this.name}@${this.version}`;
+  }
+  static async fromName(name: string) {
+    const version = await modules.lookupVersion(name);
+    if (!version) {
+      return null;
+    }
+    return new Module(name, version);
+  }
+}
+
 const hash = (contentBytes: Uint8Array) =>
   crypto.subtle
     .digest("SHA-256", contentBytes)
@@ -12,13 +26,6 @@ const hash = (contentBytes: Uint8Array) =>
 interface ModuleStoreOptions {
   modulePath?: string;
   cleanup?: boolean;
-}
-
-export async function createModuleStore(ops: ModuleStoreOptions = {}) {
-  const modulePath = ops.modulePath ?? DEFAULT_MODULE_PATH;
-  await Deno.mkdir(modulePath, { recursive: true });
-  const kv = await Deno.openKv(join(modulePath, KV_FILE));
-  return new ModuleStore(kv, ops);
 }
 
 class ModuleStore {
@@ -97,3 +104,12 @@ class ModuleStore {
     this.close();
   }
 }
+
+export async function createModuleStore(ops: ModuleStoreOptions = {}) {
+  const modulePath = ops.modulePath ?? DEFAULT_MODULE_PATH;
+  await Deno.mkdir(modulePath, { recursive: true });
+  const kv = await Deno.openKv(join(modulePath, KV_FILE));
+  return new ModuleStore(kv, ops);
+}
+
+export const modules = await createModuleStore();

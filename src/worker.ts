@@ -1,6 +1,8 @@
 import { EventEmitter } from "node:events";
 import { nanoid } from "npm:nanoid";
 import { generateRandomName } from "./name-generator.ts";
+import { resolve as resolvePath } from "node:path";
+import type { Module } from "./modules.ts";
 
 interface WorkerEvents {
   listening: {
@@ -8,7 +10,7 @@ interface WorkerEvents {
     port: number;
   };
   loading: {
-    module: string;
+    module: Module;
   };
   shutdown: {
     code: number;
@@ -21,7 +23,7 @@ export class Worker {
   #emitter = new EventEmitter();
 
   name = generateRandomName();
-  module: string | null = null;
+  module: Module | null = null;
   port: number;
 
   private constructor() {
@@ -44,7 +46,7 @@ export class Worker {
           "-i",
           "--rm",
           "--name",
-          this.name,
+          this.name + "_" + nanoid(4),
           "-v",
           `./data/workers/${this.name}:/app/data`,
           `-p`,
@@ -63,7 +65,7 @@ export class Worker {
     this.#process.status.then(({ code }) => {
       console.log(
         "[worker]",
-        `${this.name}::module(${this.module})`,
+        `${this.name}::module(${this.module?.name}@${this.module?.version})`,
         "stopped with",
         code,
       );
@@ -76,10 +78,13 @@ export class Worker {
     return this.#running;
   }
 
-  run(req: Request, module?: string) {
-    if (module) {
+  async run(req: Request, module: Module) {
+    let loading = false;
+    if (!this.module || module.version !== this.module.version) {
+      loading = true;
       this.module = module;
       this.#emit("loading", { module });
+      await this.linkModule();
     }
     const url = new URL(req.url);
     // Remove the module address from the path, but preserve whatever else may be there
@@ -90,13 +95,30 @@ export class Worker {
     );
     const reqId = crypto.randomUUID();
     newReq.headers.set("x-req-id", reqId);
-    if (module) {
+    if (loading) {
       console.log("[worker]", `${this.name}`, "loading module", module);
-      newReq.headers.set("x-load-module", module);
+      newReq.headers.set("x-load-module", module.version);
     } else {
       newReq.headers.delete("x-load-module");
     }
     return fetch(newReq);
+  }
+
+  private async linkModule() {
+    if (!this.module) {
+      throw new Error("No module to link");
+    }
+    try {
+      // Make the module available to the worker
+      await Deno.link(
+        resolvePath(`./data/modules/${this.module.version}`),
+        resolvePath(`./data/workers/${this.name}/${this.module.version}`),
+      );
+    } catch (error) {
+      if (!(error instanceof Deno.errors.AlreadyExists)) {
+        throw new Error(`Failed to share module with worker: ${error}`);
+      }
+    }
   }
 
   private findFreePort(): number {
@@ -122,10 +144,11 @@ export class Worker {
   }
 
   restart() {
+    console.log("[worker]", `${this.name}`, "restarting");
     if (this.#running) {
       this.#process?.kill("SIGINT");
+      this.#running = false;
     }
-    this.#emitter.removeAllListeners();
     return this.start();
   }
 

@@ -28,7 +28,6 @@ const server = Deno.serve(
         const moduleCode = await Deno.readTextFile(
           join("/app/data", moduleToLoad),
         );
-        console.log("[bootstrap] read code", moduleCode);
         if (!moduleCode) {
           return new Response("Module not found", { status: 404 });
         }
@@ -36,7 +35,7 @@ const server = Deno.serve(
           userCode =
             (await import(`data:text/tsx,${encodeURIComponent(moduleCode)}`))
               .default;
-          console.log("[bootstrap] loaded code", userCode);
+          console.log("[bootstrap] finished loading module", moduleToLoad);
         });
       } catch (error) {
         userCode = undefined;
