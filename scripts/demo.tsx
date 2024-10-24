@@ -72,7 +72,8 @@ const PromptForm: FC = ({ input }: { input?: string }) => {
 const Iframe = ({ id }: { id: string }) => {
   return (
     <a
-      href={`view/${id}`}
+      id={id}
+      href={`/view/${id}`}
       style={{
         display: "block",
         width: "100%",
@@ -84,8 +85,8 @@ const Iframe = ({ id }: { id: string }) => {
         color: "inherit",
       }}
     >
-      <div style={{ pointerEvents: "none" }}>
-        <iframe src={`${sv.url}/${id}`} style={{ width: "100%" }} />
+      <div style={{ pointerEvents: "none", width: "100%" }}>
+        <iframe src={`/view/${id}`} style={{ width: "100%" }} />
       </div>
     </a>
   );
@@ -107,6 +108,7 @@ app.get("/", (c) => {
                     const id = src.split("/").pop()
                     const a = document.createElement('a');
                     a.href = \`view/$\{id\}\`;
+                    a.id = id;
                     a.style.cssText = \`
                       display: block;
                       outline: 2px solid #007bff;
@@ -122,6 +124,7 @@ app.get("/", (c) => {
 
                     const iframe = document.createElement('iframe');
                     iframe.src = \`view/$\{id\}\`;
+                    iframe.style.width = "100%";
 
                     div.appendChild(iframe);
                     a.appendChild(div);
@@ -138,8 +141,16 @@ app.get("/", (c) => {
                       };
                       eventSource.onmessage = function (event) {
                         console.log("Data received:", event.data);
-                        const iframe = createIframeElement(event.data)
-                        grid.appendChild(iframe)
+                        const id = event.data.split("/").pop();
+                        const existingIframe = document.getElementById(id);
+
+                        const iframe = createIframeElement(event.data);
+
+                        if (existingIframe) {
+                          existingIframe.replaceWith(iframe);
+                        } else {
+                          grid.appendChild(iframe);
+                        }
                       };
                       eventSource.onerror = function (event) {
                         if (event.eventPhase == EventSource.CLOSED) {
@@ -177,7 +188,7 @@ function subscribe() {
     start(controller) {
       disposable = sv.on("load", (name) => {
         controller.enqueue(
-          new TextEncoder().encode(`data: ${sv.url}/${name}\n\n`),
+          new TextEncoder().encode(`data: ${name}\n\n`),
         );
       });
     },
@@ -238,25 +249,17 @@ app.post("/create", async (c) => {
 
     console.log(response.data.choices[0].message?.content);
 
-    const success = await sv.load(
+    await sv.load(
       id,
       response.data.choices[0].message?.content as string,
     );
-    if (!success) {
-      c.status(500);
-      return c.html(
-        <Template>
-          <h1>Something went wrong</h1>
-        </Template>,
-      );
-    }
   }
   return c.html(
     <Template>
       <div style={{ display: "flex", gap: "1rem" }}>
         <iframe
           style={{ width: "100%", height: "500px" }}
-          src={`${sv.url}/${id}`}
+          src={`/view/${id}`}
         />
         <PromptForm input={prompt} />
       </div>
@@ -274,31 +277,40 @@ app.get("/create", (c) => {
 
 app.get("/view/:id", (c) => {
   const id = c.req.param("id");
-  if (!sv.ids.includes(id)) {
-    c.status(404);
-    return c.html(
-      <Template>
-        <h1>404 - Not Found</h1>
-        <p>The requested ID does not exist.</p>
-        <a href="/">Return Home</a>
-      </Template>,
-    );
-  }
-  return fetch(`${sv.url}/${id}`);
+  return fetch(`${sv.url}/${id}`).then((res) =>
+    res.status === 404
+      ? c.html(
+        <Template>
+          <h1>404 - Not Found</h1>
+          <p>The requested ID does not exist.</p>
+          <a href="/">Return Home</a>
+        </Template>,
+      )
+      : res
+  );
 });
 
-const server = Deno.serve(app.fetch);
+const serverAbortController = new AbortController();
+const server = Deno.serve({
+  reusePort: true,
+  signal: serverAbortController.signal,
+}, app.fetch);
 
-Deno.addSignalListener("SIGINT", async () => {
-  console.log("SIGINT");
-  await server.shutdown();
+const shutdown = (signal: string) => async () => {
+  console.log(`[DEMO] ${signal}`);
   await sv.shutdown();
+  const serverTimeout = setTimeout(() => {
+    serverAbortController.abort();
+    Deno.exit(1);
+  }, 3000);
+  await server.shutdown();
+  clearTimeout(serverTimeout);
   Deno.exit(0);
-});
+};
 
-Deno.addSignalListener("SIGTERM", async () => {
-  console.log("SIGTERM");
-  await server.shutdown();
-  await sv.shutdown();
-  Deno.exit(0);
+Deno.addSignalListener("SIGINT", shutdown("SIGINT"));
+Deno.addSignalListener("SIGTERM", shutdown("SIGTERM"));
+
+addEventListener("unload", () => {
+  sv.shutdown();
 });

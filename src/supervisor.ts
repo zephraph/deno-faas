@@ -1,123 +1,49 @@
 import { EventEmitter } from "node:events";
+import { WorkerPool } from "./worker-pool.ts";
+import { Module, modules } from "./modules.ts";
 
-interface WorkerOptions {
-  name: string;
-  code: string;
-  version: number;
-}
-
-class Worker {
-  #process: Deno.ChildProcess;
-  #running = true;
-  name: string;
-  version: number;
-  port: number;
-
-  constructor({ name, code, version }: WorkerOptions) {
-    this.name = name;
-    this.version = version;
-    this.port = this.findFreePort();
-    this.#process = new Deno.Command(
-      "docker",
-      {
-        args: [
-          "run",
-          "-i",
-          "--rm",
-          `-p`,
-          `${this.port}:8000`,
-          "--cpus",
-          "0.2",
-          "--memory",
-          "200m",
-          "worker",
-          code,
-        ],
-        stderr: "piped",
-        stdout: "piped",
-      },
-    ).spawn();
-
-    this.#process.status.then(({ code }) => {
-      console.log(
-        "[worker]",
-        `${this.name}@${this.version}`,
-        "stopped with",
-        code,
-      );
-      this.#running = false;
-    });
-  }
-
-  get running() {
-    return this.#running;
-  }
-
-  run(req: Request) {
-    const url = new URL(req.url);
-    const newReq = new Request(
-      `http://localhost:${this.port}${url.pathname}`,
-      req,
-    );
-    const reqId = crypto.randomUUID();
-    newReq.headers.set("x-req-id", reqId);
-    return fetch(newReq);
-  }
-
-  private findFreePort(): number {
-    const server = Deno.listen({ port: 0 });
-    const { port } = server.addr as Deno.NetAddr;
-    server.close();
-    return port;
-  }
-
-  async waitUntilReady() {
-    let timedout = false;
-    const timeout = setTimeout(() => {
-      timedout = true;
-    }, 5000);
-    while (this.#running && !timedout) {
-      try {
-        const res = await fetch(`http://localhost:${this.port}`, {
-          headers: {
-            "X-Health-Check": "true",
-          },
-        });
-        if (res.status === 200) {
-          clearTimeout(timeout);
-          return true;
-        }
-      } catch (_) {
-        await new Promise((resolve) => setTimeout(resolve, 50));
-      }
-    }
-    clearTimeout(timeout);
-    return false;
-  }
-
-  shutdown() {
-    console.log("[worker]", `${this.name}@${this.version}`, "shutting down");
-    if (this.#running) {
-      this.#process.kill("SIGINT");
-    }
-  }
+interface SupervisorOptions {
+  idleWorkers?: number;
+  maxWorkers?: number;
+  workerTimeout?: number;
 }
 
 export class DenoHttpSupervisor {
-  #workers: Record<string, Worker>;
+  #workerPool: WorkerPool;
   #server: Deno.HttpServer;
   #emitter = new EventEmitter();
 
-  constructor() {
-    this.#workers = {};
-    this.#server = Deno.serve({ port: 0 }, (req) => {
+  constructor(opts: SupervisorOptions = {}) {
+    this.#workerPool = new WorkerPool({
+      max: opts.maxWorkers ?? 30,
+      min: opts.idleWorkers ?? 1,
+      minIdle: opts.idleWorkers ?? 1,
+      acquireMaxRetries: 10,
+      acquireRetryWait: 20,
+    });
+
+    this.#workerPool.start();
+
+    // Ensure the workers directory exists
+    Deno.mkdirSync("./data/workers", { recursive: true });
+
+    this.#server = Deno.serve({ port: 0 }, async (req) => {
       const url = new URL(req.url);
-      const name = url.pathname.slice(1);
-      if (name in this.#workers) {
-        const worker = this.#workers[name];
-        return worker.run(req);
+      const moduleName = url.pathname.slice(1);
+      console.log("[supervisor] request for", moduleName);
+      const module = await Module.fromName(moduleName);
+
+      if (!module) {
+        return Response.json({ error: "Not found" }, { status: 404 });
       }
-      return Response.json({ error: "Not found" }, { status: 404 });
+
+      if (moduleName in this.#workerPool.activeWorkers) {
+        const worker = this.#workerPool.activeWorkers[moduleName];
+        return worker.run(req, module);
+      }
+
+      const worker = await this.#workerPool.acquire();
+      return worker.run(req, module);
     });
     console.log(
       "[supervisor] listening on",
@@ -131,7 +57,7 @@ export class DenoHttpSupervisor {
   }
 
   get ids() {
-    return Object.keys(this.#workers);
+    return this.#workerPool.activeWorkerKeys;
   }
 
   on(event: "load", listener: (name: string, version: number) => void) {
@@ -142,35 +68,15 @@ export class DenoHttpSupervisor {
   }
 
   async load(name: string, code: string) {
-    let oldWorker: Worker | undefined;
-    if (name in this.#workers) {
-      oldWorker = this.#workers[name];
-    }
-    const newWorker = new Worker({
-      name,
-      code,
-      version: (oldWorker?.version ?? 0) + 1,
-    });
-    const success = await newWorker.waitUntilReady();
-    if (success && newWorker.running) {
-      oldWorker?.shutdown();
-      this.#workers[name] = newWorker;
-      this.#emitter.emit("load", name);
-    } else if (!newWorker.running) {
-      console.error("worker stopped unexpectedly", name);
-      return false;
-    } else {
-      console.error("failed to load", name);
-      return false;
-    }
-    return true;
+    await modules.save(name, code);
+    this.#emitter.emit("load", name);
   }
 
   async shutdown() {
     console.log("[supervisor] shutting down");
     await this.#server.shutdown();
-    for (const worker of Object.values(this.#workers)) {
-      worker.shutdown();
-    }
+    // Wait for workers to shutdown gracefully, but close it forcefully after 3 seconds
+    await this.#workerPool.closeAsync(3000);
+    console.log("[supervisor] shutdown complete");
   }
 }

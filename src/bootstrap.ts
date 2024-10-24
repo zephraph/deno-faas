@@ -1,38 +1,10 @@
-// Copied from https://github.com/val-town/deno-http-worker/blob/main/deno-bootstrap/index.ts
+// Inspired by but heavily modified from https://github.com/val-town/deno-http-worker/blob/main/deno-bootstrap/index.ts
+import { Mutex } from "./mutex.ts";
+import { join } from "node:path";
 
-const script = Deno.args[0];
+const moduleLoadMutex = new Mutex();
 
-{
-  const oldLog = console.log;
-  const oldInfo = console.info;
-  const oldWarn = console.warn;
-  const oldError = console.error;
-  console.log = (...data) =>
-    oldLog(`LOG  [${new Date().toISOString()}]`, ...data);
-  console.info = (...data) =>
-    oldInfo(`INFO [${new Date().toISOString()}]`, ...data);
-  console.warn = (...data) =>
-    oldWarn(`WARN [${new Date().toISOString()}]`, ...data);
-  console.error = (...data) =>
-    oldError(`ERROR [${new Date().toISOString()}]`, ...data);
-  // Ensure console can't be further modified
-  Object.freeze(console);
-}
-
-if (!script) {
-  throw new Error("Script is required");
-}
-
-const mod = await import(`data:text/tsx,${encodeURIComponent(script)}`);
-if (!mod.default) {
-  throw new Error("No default export");
-}
-
-const { default: main } = mod;
-
-if (typeof main !== "function") {
-  throw new Error("Default export is not a function");
-}
+let userCode: unknown;
 
 const server = Deno.serve(
   {
@@ -42,19 +14,50 @@ const server = Deno.serve(
       return new Response("Error", { status: 500 });
     },
   },
-  (req) => {
+  async (req) => {
     if (req.headers.get("X-Health-Check")) {
       return new Response("OK", { status: 200 });
+    }
+
+    // SECURITY: This should be hardened. We don't want end users to be able
+    // to overwrite deployed code with their own.
+    const moduleToLoad = req.headers.get("X-Load-Module");
+    if (moduleToLoad) {
+      console.log("[bootstrap] loading module", moduleToLoad);
+      try {
+        const moduleCode = await Deno.readTextFile(
+          join("/app/data", moduleToLoad),
+        );
+        if (!moduleCode) {
+          return new Response("Module not found", { status: 404 });
+        }
+        await moduleLoadMutex.withLock(async () => {
+          userCode =
+            (await import(`data:text/tsx,${encodeURIComponent(moduleCode)}`))
+              .default;
+          console.log("[bootstrap] finished loading module", moduleToLoad);
+        });
+      } catch (error) {
+        userCode = undefined;
+        return new Response(`Failed loading user code: ${error}`, {
+          status: 400,
+        });
+      }
+    }
+
+    // This could be expanded to support other types of exports
+    if (typeof userCode !== "function") {
+      throw new Error("No default export");
     }
     let timeout: number = 0;
     try {
       timeout = setTimeout(() => {
         throw new Error("Timeout");
       }, 60_000);
-      return main(req);
+      return userCode(req);
     } catch (error) {
       if (error instanceof Deno.errors.NotCapable) {
-        return new Response("Naughty", { status: 401 });
+        return new Response("Naughty, Naughty", { status: 401 });
       }
       if (error instanceof Error && error.message === "Timeout") {
         return new Response("Timed out", { status: 408 });
