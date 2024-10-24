@@ -1,4 +1,6 @@
 import { EventEmitter } from "node:events";
+import { nanoid } from "npm:nanoid";
+import { generateRandomName } from "./name-generator.ts";
 
 interface WorkerEvents {
   listening: {
@@ -18,7 +20,7 @@ export class Worker {
   #running = false;
   #emitter = new EventEmitter();
 
-  id = crypto.randomUUID();
+  name = generateRandomName();
   module: string | null = null;
   port: number;
 
@@ -33,7 +35,7 @@ export class Worker {
   }
 
   async start() {
-    await Deno.mkdir(`./data/workers/${this.id}`, { recursive: true });
+    await Deno.mkdir(`./data/workers/${this.name}`, { recursive: true });
     this.#process = new Deno.Command(
       "docker",
       {
@@ -41,8 +43,10 @@ export class Worker {
           "run",
           "-i",
           "--rm",
+          "--name",
+          this.name,
           "-v",
-          `./data/workers/${this.id}:/app/data`,
+          `./data/workers/${this.name}:/app/data`,
           `-p`,
           `${this.port}:8000`,
           "--cpus",
@@ -51,16 +55,15 @@ export class Worker {
           "200m",
           "worker:latest",
         ],
-        stdin: "piped",
       },
     ).spawn();
     this.#running = true;
-    this.#emit("listening", { id: this.id, port: this.port });
+    this.#emit("listening", { id: this.name, port: this.port });
 
     this.#process.status.then(({ code }) => {
       console.log(
         "[worker]",
-        `${this.id}::module(${this.module})`,
+        `${this.name}::module(${this.module})`,
         "stopped with",
         code,
       );
@@ -88,7 +91,7 @@ export class Worker {
     const reqId = crypto.randomUUID();
     newReq.headers.set("x-req-id", reqId);
     if (module) {
-      console.log("[worker]", `${this.id}`, "loading module", module);
+      console.log("[worker]", `${this.name}`, "loading module", module);
       newReq.headers.set("x-load-module", module);
     } else {
       newReq.headers.delete("x-load-module");
@@ -127,13 +130,13 @@ export class Worker {
   }
 
   async shutdown() {
-    console.log("[worker]", `${this.id}`, "shutting down");
+    console.log("[worker]", `${this.name}`, "shutting down");
     if (this.#running) {
       this.#process?.kill("SIGINT");
     }
     this.#emitter.removeAllListeners();
     try {
-      await Deno.remove(`./data/workers/${this.id}`, { recursive: true });
+      await Deno.remove(`./data/workers/${this.name}`, { recursive: true });
     } catch (e) {
       if (e instanceof Deno.errors.NotFound) {
         // Nothing to clean up

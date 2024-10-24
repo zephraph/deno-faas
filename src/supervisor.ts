@@ -51,7 +51,7 @@ export class DenoHttpSupervisor {
           // Make the module available to the worker
           await Deno.link(
             resolvePath(`./data/modules/${version}`),
-            resolvePath(`./data/workers/${worker.id}/${version}`),
+            resolvePath(`./data/workers/${worker.name}/${version}`),
           );
         } catch (error) {
           if (!(error instanceof Deno.errors.AlreadyExists)) {

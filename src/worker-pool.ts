@@ -79,7 +79,7 @@ export class WorkerPool extends Pool<Worker> {
       console.log("[worker-pool] started");
     });
     this.on("create", (worker) => {
-      console.log("[worker-pool] created worker", worker.id);
+      console.log("[worker-pool] created worker", worker.name);
       // If the worker shuts down and we've got a hold on it, ensure it's released
       worker.on("shutdown", () => {
         if (this.isAcquired(worker)) {
@@ -91,31 +91,34 @@ export class WorkerPool extends Pool<Worker> {
       console.error("[worker-pool] create error", error);
     });
     this.on("acquire", (worker) => {
-      console.log("[worker-pool] acquired worker", worker.id);
+      console.log("[worker-pool] acquired worker", worker.name);
     });
     this.on("return", (worker) => {
       if (worker.module) {
         delete this.#activeWorkers[worker.module];
       } else {
-        console.warn("[worker-pool] worker returned without module", worker.id);
+        console.warn(
+          "[worker-pool] worker returned without module",
+          worker.name,
+        );
       }
-      console.log("[worker-pool] return worker", worker.id);
+      console.log("[worker-pool] return worker", worker.name);
     });
     this.on("destroy", (worker) => {
       worker.shutdown();
-      console.log("[worker-pool] destroy worker", worker.id);
+      console.log("[worker-pool] destroy worker", worker.name);
     });
     this.on("destroy-error", (error, worker) => {
-      console.error("[worker-pool] destroy error", error, worker.id);
+      console.error("[worker-pool] destroy error", error, worker.name);
     });
     this.on("reset", (worker) => {
-      console.log("[worker-pool] reset worker", worker.id);
+      console.log("[worker-pool] reset worker", worker.name);
     });
     this.on("reset-error", (error) => {
       console.error("[worker-pool] reset error", error);
     });
     this.on("validate", (worker) => {
-      console.log("[worker-pool] validate worker", worker.id);
+      console.log("[worker-pool] validate worker", worker.name);
     });
     this.on("validate-error", (error) => {
       console.error("[worker-pool] validate error", error);
