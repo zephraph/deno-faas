@@ -3,7 +3,7 @@ import { Worker } from "./worker.ts";
 import { createModuleStore } from "./modules.ts";
 import { Pool, type PoolFactory } from "npm:lightning-pool";
 
-const modules = await createModuleStore({ modulePath: "./data/modules" });
+const modules = await createModuleStore();
 
 const workerPoolFactory: PoolFactory<Worker> = {
   create() {
@@ -56,13 +56,24 @@ export class DenoHttpSupervisor {
 
     this.#server = Deno.serve({ port: 0 }, async (req) => {
       const url = new URL(req.url);
-      const name = url.pathname.slice(1);
-      if (name in this.#activeWorkers) {
-        const worker = this.#activeWorkers[name];
+      const moduleName = url.pathname.slice(1);
+      if (moduleName in this.#activeWorkers) {
+        const worker = this.#activeWorkers[moduleName];
         return worker.run(req);
-      } else if (await modules.has(name)) {
-        const worker = await this.#workerPool.acquire();
-        return worker.run(req, name);
+      } else if (await modules.has(moduleName)) {
+        const [worker, version] = await Promise.all([
+          this.#workerPool.acquire(),
+          modules.lookupVersion(moduleName),
+        ]);
+        if (!version) {
+          return Response.json({ error: "Not found" }, { status: 404 });
+        }
+        // Make the module available to the worker
+        await Deno.link(
+          `./data/modules/${version}`,
+          `./data/workers/${worker.id}/${version}`,
+        );
+        return worker.run(req, version);
       }
       return Response.json({ error: "Not found" }, { status: 404 });
     });

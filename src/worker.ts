@@ -36,7 +36,7 @@ export class Worker {
           "-i",
           "--rm",
           "-v",
-          `./data/${this.id}:/app/data`,
+          `./data/workers/${this.id}:/app/data`,
           `-p`,
           `${this.port}:8000`,
           "--cpus",
@@ -60,8 +60,6 @@ export class Worker {
       this.#running = false;
       this.#emit("shutdown", { code });
     });
-
-    return this.#process;
   }
 
   get running() {
@@ -110,9 +108,11 @@ export class Worker {
     return res.ok;
   }
 
-  async restart() {
-    await this.shutdown();
-    this.start();
+  restart() {
+    if (this.#running) {
+      this.#process?.kill("SIGINT");
+    }
+    return this.start();
   }
 
   async shutdown() {
@@ -120,7 +120,7 @@ export class Worker {
     if (this.#running) {
       this.#process?.kill("SIGINT");
     }
-    await Deno.remove(`./data/${this.id}`, { recursive: true });
+    await Deno.remove(`./data/workers/${this.id}`, { recursive: true });
   }
 
   #emit<E extends keyof WorkerEvents>(
