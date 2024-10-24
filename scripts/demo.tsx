@@ -248,7 +248,7 @@ app.post("/create", async (c) => {
       <div style={{ display: "flex", gap: "1rem" }}>
         <iframe
           style={{ width: "100%", height: "500px" }}
-          src={`${sv.url}/${id}`}
+          src={`/view/${id}`}
         />
         <PromptForm input={prompt} />
       </div>
