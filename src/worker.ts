@@ -1,6 +1,8 @@
 import { EventEmitter } from "node:events";
+
 interface WorkerEvents {
   listening: {
+    id: string;
     port: number;
   };
   loading: {
@@ -12,29 +14,29 @@ interface WorkerEvents {
 }
 
 export class Worker {
-  #process: Deno.ChildProcess;
+  #process: Deno.ChildProcess | null = null;
   #running = false;
   #emitter = new EventEmitter();
 
-  name: string = "";
-  version: number = 0;
+  id = crypto.randomUUID();
+  module: string | null = null;
   port: number;
 
   constructor() {
     this.port = this.findFreePort();
-    this.#process = this.start();
   }
 
-  start() {
+  async start() {
+    await Deno.mkdir(`./data/${this.id}`, { recursive: true });
     this.#process = new Deno.Command(
       "docker",
       {
         args: [
           "run",
           "-i",
-          // "--rm",
+          "--rm",
           "-v",
-          "./data:/app/data",
+          `./data/${this.id}:/app/data`,
           `-p`,
           `${this.port}:8000`,
           "--cpus",
@@ -43,20 +45,20 @@ export class Worker {
           "200m",
           "worker:latest",
         ],
-        // stderr: "piped",
-        // stdout: "piped",
       },
     ).spawn();
     this.#running = true;
+    this.#emit("listening", { id: this.id, port: this.port });
 
     this.#process.status.then(({ code }) => {
       console.log(
         "[worker]",
-        `${this.name}@${this.version}`,
+        `${this.id}::module(${this.module})`,
         "stopped with",
         code,
       );
       this.#running = false;
+      this.#emit("shutdown", { code });
     });
 
     return this.#process;
@@ -67,6 +69,10 @@ export class Worker {
   }
 
   run(req: Request, module?: string) {
+    if (module) {
+      this.module = module;
+      this.#emit("loading", { module });
+    }
     const url = new URL(req.url);
     const newReq = new Request(
       `http://localhost:${this.port}${url.pathname}`,
@@ -104,16 +110,24 @@ export class Worker {
     return res.ok;
   }
 
-  restart() {
-    this.shutdown();
+  async restart() {
+    await this.shutdown();
     this.start();
   }
 
-  shutdown() {
-    console.log("[worker]", `${this.name}@${this.version}`, "shutting down");
+  async shutdown() {
+    console.log("[worker]", `${this.id}`, "shutting down");
     if (this.#running) {
-      this.#process.kill("SIGINT");
+      this.#process?.kill("SIGINT");
     }
+    await Deno.remove(`./data/${this.id}`, { recursive: true });
+  }
+
+  #emit<E extends keyof WorkerEvents>(
+    event: E,
+    payload: WorkerEvents[E],
+  ) {
+    this.#emitter.emit(event, payload);
   }
 
   on<E extends keyof WorkerEvents>(
