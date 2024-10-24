@@ -72,7 +72,7 @@ const PromptForm: FC = ({ input }: { input?: string }) => {
 const Iframe = ({ id }: { id: string }) => {
   return (
     <a
-      href={`view/${id}`}
+      href={`/view/${id}`}
       style={{
         display: "block",
         width: "100%",
@@ -85,7 +85,7 @@ const Iframe = ({ id }: { id: string }) => {
       }}
     >
       <div style={{ pointerEvents: "none" }}>
-        <iframe src={`${sv.url}/${id}`} style={{ width: "100%" }} />
+        <iframe src={`/view/${id}`} style={{ width: "100%" }} />
       </div>
     </a>
   );
@@ -177,7 +177,7 @@ function subscribe() {
     start(controller) {
       disposable = sv.on("load", (name) => {
         controller.enqueue(
-          new TextEncoder().encode(`data: ${sv.url}/${name}\n\n`),
+          new TextEncoder().encode(`data: ${name}\n\n`),
         );
       });
     },
@@ -299,3 +299,7 @@ const shutdown = (signal: string) => async () => {
 
 Deno.addSignalListener("SIGINT", shutdown("SIGINT"));
 Deno.addSignalListener("SIGTERM", shutdown("SIGTERM"));
+
+addEventListener("unload", () => {
+  sv.shutdown();
+});
