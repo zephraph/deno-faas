@@ -186,9 +186,9 @@ function subscribe() {
   let disposable: () => void;
   const body = new ReadableStream({
     start(controller) {
-      disposable = sv.on("load", (name) => {
+      disposable = sv.on("load", (moduleName) => {
         controller.enqueue(
-          new TextEncoder().encode(`data: ${name}\n\n`),
+          new TextEncoder().encode(`data: ${moduleName}\n\n`),
         );
       });
     },
@@ -285,32 +285,23 @@ app.get("/view/:id", (c) => {
           <p>The requested ID does not exist.</p>
           <a href="/">Return Home</a>
         </Template>,
+        404
       )
       : res
   );
 });
 
-const serverAbortController = new AbortController();
 const server = Deno.serve({
   reusePort: true,
-  signal: serverAbortController.signal,
 }, app.fetch);
 
 const shutdown = (signal: string) => async () => {
   console.log(`[DEMO] ${signal}`);
   await sv.shutdown();
-  const serverTimeout = setTimeout(() => {
-    serverAbortController.abort();
-    Deno.exit(1);
-  }, 3000);
   await server.shutdown();
-  clearTimeout(serverTimeout);
+  console.log(`[DEMO] server shutdown complete.`)
   Deno.exit(0);
 };
 
 Deno.addSignalListener("SIGINT", shutdown("SIGINT"));
 Deno.addSignalListener("SIGTERM", shutdown("SIGTERM"));
-
-addEventListener("unload", () => {
-  sv.shutdown();
-});
