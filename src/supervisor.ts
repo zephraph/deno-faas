@@ -57,8 +57,8 @@ export class DenoHttpSupervisor {
 
   async shutdown() {
     console.log("[supervisor] shutting down");
+    Object.values(this.#workers).forEach((worker) => worker.shutdown());
     await this.#server.shutdown();
-    await Promise.all(Object.values(this.#workers).map(worker => worker.shutdown()));
-    console.log("[supervisor] shutdown complete");
+    console.log("[supervisor] shutdown success! 🎉");
   }
 }

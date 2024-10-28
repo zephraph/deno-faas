@@ -120,9 +120,7 @@ export class Worker {
   }
 
   shutdown() {
-    if (this.#process === null) {
-      return;
-    }
+    if (this.#process === null) return;
     console.log("[worker]", `${this.name}`, "shutting down");
     this.#process.kill("SIGINT");
     // todo(sbmsr): why does awaiting the promise here break the console log flow?

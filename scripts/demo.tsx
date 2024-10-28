@@ -299,12 +299,7 @@ const server = Deno.serve({
 const shutdown = (signal: string) => async () => {
   console.log(`[DEMO] ${signal}`);
   await sv.shutdown();
-  const serverTimeout = setTimeout(() => {
-    serverAbortController.abort();
-    Deno.exit(1);
-  }, 3000);
   await server.shutdown();
-  clearTimeout(serverTimeout);
   Deno.exit(0);
 };
 
