@@ -1,29 +1,13 @@
 import { EventEmitter } from "node:events";
-import { WorkerPool } from "./worker-pool.ts";
 import { Module, modules } from "./modules.ts";
-
-interface SupervisorOptions {
-  idleWorkers?: number;
-  maxWorkers?: number;
-  workerTimeout?: number;
-}
+import { Worker } from "./worker.ts";
 
 export class DenoHttpSupervisor {
-  #workerPool: WorkerPool;
+  #workers: Record<string, Worker> = {};
   #server: Deno.HttpServer;
   #emitter = new EventEmitter();
 
-  constructor(opts: SupervisorOptions = {}) {
-    this.#workerPool = new WorkerPool({
-      max: opts.maxWorkers ?? 30,
-      min: opts.idleWorkers ?? 1,
-      minIdle: opts.idleWorkers ?? 1,
-      acquireMaxRetries: 10,
-      acquireRetryWait: 20,
-    });
-
-    this.#workerPool.start();
-
+  constructor() {
     // Ensure the workers directory exists
     Deno.mkdirSync("./data/workers", { recursive: true });
 
@@ -37,12 +21,11 @@ export class DenoHttpSupervisor {
         return Response.json({ error: "Not found" }, { status: 404 });
       }
 
-      if (moduleName in this.#workerPool.activeWorkers) {
-        const worker = this.#workerPool.activeWorkers[moduleName];
-        return worker.run(req, module);
+      const worker = this.#workers[moduleName] ?? await Worker.create();
+      this.#workers[moduleName] = worker;
+      if (!await worker.healthCheck()) {
+        return Response.json({ error: "Health Check Failed" }, { status: 500 });
       }
-
-      const worker = await this.#workerPool.acquire();
       return worker.run(req, module);
     });
     console.log(
@@ -57,7 +40,7 @@ export class DenoHttpSupervisor {
   }
 
   get ids() {
-    return this.#workerPool.activeWorkerKeys;
+    return Object.keys(this.#workers);
   }
 
   on(event: "load", listener: (name: string, version: number) => void) {
@@ -75,8 +58,7 @@ export class DenoHttpSupervisor {
   async shutdown() {
     console.log("[supervisor] shutting down");
     await this.#server.shutdown();
-    // Wait for workers to shutdown gracefully, but close it forcefully after 3 seconds
-    await this.#workerPool.closeAsync(3000);
+    await Promise.all(Object.values(this.#workers).map(worker => worker.shutdown()));
     console.log("[supervisor] shutdown complete");
   }
 }
