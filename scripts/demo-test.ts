@@ -1,9 +1,8 @@
-
 async function postIncrementingPrompts(concurrent = false) {
   const baseUrl = "http://0.0.0.0:8000";
-  const createUrl = `${baseUrl}/create`
-  const viewUrl = (id: string) => `${baseUrl}/view/${id}`
-  const maxPrompts = 1;
+  const createUrl = `${baseUrl}/create`;
+  const viewUrl = (id: string) => `${baseUrl}/view/${id}`;
+  const maxPrompts = 30;
 
   if (concurrent) {
     const requests = Array.from({ length: maxPrompts }, (_, i) => {
@@ -18,7 +17,7 @@ async function postIncrementingPrompts(concurrent = false) {
           "content-type": "application/x-www-form-urlencoded",
           "pragma": "no-cache",
           "sec-gpc": "1",
-          "Set-Cookie":`id=${i}`,
+          "Set-Cookie": `id=${i}`,
           "upgrade-insecure-requests": "1",
         },
         body: body,
@@ -26,10 +25,10 @@ async function postIncrementingPrompts(concurrent = false) {
       }).then((response) => {
         console.log(`Posted prompt ${i + 1}: ${body}`);
         console.log(`Response status: ${response.status}`);
-        console.log(viewUrl(i.toString()))
+        console.log(viewUrl(i.toString()));
         fetch(viewUrl(i.toString())).then((response) => {
-            console.log(`GET /view/:id Response status: ${response.status}`);
-        })
+          console.log(`GET /view/:id Response status: ${response.status}`);
+        });
       }).catch((error) => {
         console.error(`Error posting prompt ${i + 1}:`, error);
       });
@@ -50,7 +49,7 @@ async function postIncrementingPrompts(concurrent = false) {
             "content-type": "application/x-www-form-urlencoded",
             "pragma": "no-cache",
             "sec-gpc": "1",
-            "Set-Cookie":`id=${i}`,
+            "Set-Cookie": `id=${i}`,
             "upgrade-insecure-requests": "1",
           },
           body: body,
@@ -58,8 +57,8 @@ async function postIncrementingPrompts(concurrent = false) {
         });
         console.log(`Posted prompt ${i + 1}: ${body}`);
         console.log(`Response status: ${response.status}`);
-        console.log(viewUrl(i.toString()))
-        const getResponse = await fetch(viewUrl(i.toString()))
+        console.log(viewUrl(i.toString()));
+        const getResponse = await fetch(viewUrl(i.toString()));
         console.log(`GET /view/:id Response status: ${getResponse.status}`);
       } catch (error) {
         console.error(`Error posting prompt ${i + 1}:`, error);
@@ -69,4 +68,4 @@ async function postIncrementingPrompts(concurrent = false) {
 }
 
 // Run the function
-postIncrementingPrompts();
+postIncrementingPrompts(true);

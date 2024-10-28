@@ -4,7 +4,7 @@
     "check": "deno lint && deno fmt && deno check .",
     "build": "docker build -t worker .",
     "demo": "deno run --env -A --unstable-net --unstable-kv scripts/demo.tsx",
-    "demo:test": "deno run --allow-net scripts/demo_test.ts",
+    "demo:test": "deno run --allow-net scripts/demo-test.ts",
     "test": "deno test --allow-read --allow-write --unstable-kv"
   },
   "imports": {
