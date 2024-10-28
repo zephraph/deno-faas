@@ -3,7 +3,7 @@
     "dev": "deno run -A --watch=src/bootstrap.ts user.ts",
     "check": "deno lint && deno fmt && deno check .",
     "build": "docker build -t worker .",
-    "demo": "deno run --env -A --watch --unstable-kv --unstable-net scripts/demo.tsx",
+    "demo": "deno run --env -A --unstable-kv --unstable-net scripts/demo.tsx",
     "demo:test": "deno run --allow-net scripts/demo-test.ts",
     "test": "deno test --allow-read --allow-write --unstable-kv"
   },

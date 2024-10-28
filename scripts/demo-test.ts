@@ -1,4 +1,4 @@
-async function postIncrementingPrompts(concurrent = false) {
+async function postIncrementingPrompts(concurrent = true) {
   const baseUrl = "http://0.0.0.0:8000";
   const createUrl = `${baseUrl}/create`;
   const viewUrl = (id: string) => `${baseUrl}/view/${id}`;
@@ -67,5 +67,4 @@ async function postIncrementingPrompts(concurrent = false) {
   }
 }
 
-// Run the function
 postIncrementingPrompts();

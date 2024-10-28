@@ -1,8 +1,8 @@
 import { EventEmitter } from "node:events";
-import { nanoid } from "npm:nanoid";
-import { generateRandomName } from "./name-generator.ts";
 import { resolve as resolvePath } from "node:path";
+import { nanoid } from "npm:nanoid";
 import type { Module } from "./modules.ts";
+import { generateRandomName } from "./name-generator.ts";
 
 interface WorkerEvents {
   listening: {
@@ -135,12 +135,20 @@ export class Worker {
     if (!this.#running) {
       return false;
     }
-    const res = await fetch(`http://localhost:${this.port}`, {
-      headers: {
-        "X-Health-Check": "true",
-      },
-    });
-    return res.ok;
+    const startTime = Date.now();
+    while (Date.now() - startTime < 5000) {
+      try {
+        const res = await fetch(`http://localhost:${this.port}`, {
+          headers: {
+            "X-Health-Check": "true",
+          },
+        });
+        return res.ok
+      } catch {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+    }
+    return false;
   }
 
   restart() {
