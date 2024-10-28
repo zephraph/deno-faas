@@ -43,6 +43,16 @@ export class Worker {
         ],
       },
     ).spawn();
+
+    this.#process.status.then((status) => {
+      console.log(
+        "[worker]",
+        `${this.name}::module(${this.module?.name}@${this.module?.version})`,
+        "stopped with",
+        status.code,
+      );
+      this.#process = null;
+    });
   }
 
   async run(req: Request, module: Module) {
@@ -119,20 +129,10 @@ export class Worker {
     return false;
   }
 
-  shutdown() {
-    if (this.#process === null) return;
+  async shutdown() {
     console.log("[worker]", `${this.name}`, "shutting down");
-    this.#process.kill("SIGINT");
-    // todo(sbmsr): why does awaiting the promise here break the console log flow?
-    this.#process.status.then((status) => {
-      console.log(
-        "[worker]",
-        `${this.name}::module(${this.module?.name}@${this.module?.version})`,
-        "stopped with",
-        status.code,
-      );
-      this.cleanupData();
-    });
+    this.#process?.kill("SIGINT");
+    await this.cleanupData();
   }
 
   private async cleanupData() {
