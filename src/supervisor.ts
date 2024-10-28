@@ -60,7 +60,7 @@ export class DenoHttpSupervisor {
     console.log("[supervisor] shutting down");
     // shut down workers first
     console.log("[supervisor] shutting down workers: 🕰️");
-    Object.values(this.#workers).forEach(worker => worker.shutdown());
+    Object.values(this.#workers).forEach((worker) => worker.shutdown());
     console.log("[supervisor] shutting down workers: ✅");
 
     // then shut down the server

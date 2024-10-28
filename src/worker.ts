@@ -113,7 +113,7 @@ export class Worker {
           return true;
         }
       } catch {
-        await new Promise(resolve => setTimeout(resolve, 20));
+        await new Promise((resolve) => setTimeout(resolve, 20));
       }
     }
     return false;
@@ -126,7 +126,7 @@ export class Worker {
     console.log("[worker]", `${this.name}`, "shutting down");
     this.#process.kill("SIGINT");
     // todo(sbmsr): why does using a promise here break the console log flow?
-    this.#process.status.then(status => {
+    this.#process.status.then((status) => {
       console.log(
         "[worker]",
         `${this.name}::module(${this.module?.name}@${this.module?.version})`,
@@ -134,7 +134,7 @@ export class Worker {
         status.code,
       );
       this.cleanupData();
-    })
+    });
   }
 
   private async cleanupData() {

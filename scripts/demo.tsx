@@ -285,7 +285,7 @@ app.get("/view/:id", (c) => {
           <p>The requested ID does not exist.</p>
           <a href="/">Return Home</a>
         </Template>,
-        404
+        404,
       )
       : res
   );
@@ -299,7 +299,7 @@ const shutdown = (signal: string) => async () => {
   console.log(`[DEMO] ${signal}`);
   await sv.shutdown();
   await server.shutdown();
-  console.log(`[DEMO] server shutdown complete.`)
+  console.log(`[DEMO] server shutdown complete.`);
   Deno.exit(0);
 };
 
