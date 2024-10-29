@@ -21,14 +21,20 @@ export class DenoHttpSupervisor {
         return Response.json({ error: "Not found" }, { status: 404 });
       }
 
-      const worker = this.#workers[moduleName] ?? await Worker.create();
-      this.#workers[moduleName] = worker;
-      if (!(await worker.healthCheck())) {
-        delete this.#workers[moduleName];
-        worker.shutdown();
-        return Response.json({ error: "Health Check Failed" }, { status: 500 });
+      try {
+        const worker = this.#workers[moduleName] ??
+          await Worker.create((worker) => {
+            delete this.#workers[moduleName];
+            worker.shutdown();
+          });
+        this.#workers[moduleName] = worker;
+        return worker.run(req, module);
+      } catch (e) {
+        console.error(e);
+        return Response.json({ error: "Internal Server Error" }, {
+          status: 500,
+        });
       }
-      return worker.run(req, module);
     });
     console.log(
       "[supervisor] listening on",
