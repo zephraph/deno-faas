@@ -1,26 +1,10 @@
-import { EventEmitter } from "node:events";
-import { nanoid } from "npm:nanoid";
-import { generateRandomName } from "./name-generator.ts";
 import { resolve as resolvePath } from "node:path";
+import { nanoid } from "npm:nanoid";
 import type { Module } from "./modules.ts";
-
-interface WorkerEvents {
-  listening: {
-    id: string;
-    port: number;
-  };
-  loading: {
-    module: Module;
-  };
-  shutdown: {
-    code: number;
-  };
-}
+import { generateRandomName } from "./name-generator.ts";
 
 export class Worker {
   #process: Deno.ChildProcess | null = null;
-  #running = false;
-  #emitter = new EventEmitter();
 
   name = generateRandomName();
   module: Module | null = null;
@@ -52,30 +36,23 @@ export class Worker {
           `-p`,
           `${this.port}:8000`,
           "--cpus",
-          "0.2",
+          "0.1",
           "--memory",
-          "200m",
+          "30m",
           "worker:latest",
         ],
       },
     ).spawn();
-    this.#running = true;
-    this.#emit("listening", { id: this.name, port: this.port });
 
-    this.#process.status.then(({ code }) => {
+    this.#process.status.then((status) => {
       console.log(
         "[worker]",
         `${this.name}::module(${this.module?.name}@${this.module?.version})`,
         "stopped with",
-        code,
+        status.code,
       );
-      this.#running = false;
-      this.#emit("shutdown", { code });
+      this.#process = null;
     });
-  }
-
-  get running() {
-    return this.#running;
   }
 
   async run(req: Request, module: Module) {
@@ -83,7 +60,6 @@ export class Worker {
     if (!this.module || module.version !== this.module.version) {
       loading = true;
       this.module = module;
-      this.#emit("loading", { module });
       await this.linkModule();
     }
     const url = new URL(req.url);
@@ -132,32 +108,34 @@ export class Worker {
    * @returns true if the worker is healthy, false otherwise
    */
   async healthCheck() {
-    if (!this.#running) {
+    if (this.#process === null) {
       return false;
     }
-    const res = await fetch(`http://localhost:${this.port}`, {
-      headers: {
-        "X-Health-Check": "true",
-      },
-    });
-    return res.ok;
-  }
-
-  restart() {
-    console.log("[worker]", `${this.name}`, "restarting");
-    if (this.#running) {
-      this.#process?.kill("SIGINT");
-      this.#running = false;
+    const startTime = Date.now();
+    while (Date.now() - startTime < 5000) {
+      try {
+        const res = await fetch(`http://localhost:${this.port}`, {
+          headers: {
+            "X-Health-Check": "true",
+          },
+        });
+        if (res.ok) {
+          return true;
+        }
+      } catch {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
     }
-    return this.start();
+    return false;
   }
 
   async shutdown() {
     console.log("[worker]", `${this.name}`, "shutting down");
-    if (this.#running) {
-      this.#process?.kill("SIGINT");
-    }
-    this.#emitter.removeAllListeners();
+    this.#process?.kill("SIGINT");
+    await this.cleanupData();
+  }
+
+  private async cleanupData() {
     try {
       await Deno.remove(`./data/workers/${this.name}`, { recursive: true });
     } catch (e) {
@@ -167,26 +145,5 @@ export class Worker {
       }
       throw e;
     }
-  }
-
-  #emit<E extends keyof WorkerEvents>(
-    event: E,
-    payload: WorkerEvents[E],
-  ) {
-    this.#emitter.emit(event, payload);
-  }
-
-  on<E extends keyof WorkerEvents>(
-    event: E,
-    listener: (payload: WorkerEvents[E]) => void,
-  ) {
-    this.#emitter.on(event, listener);
-  }
-
-  once<E extends keyof WorkerEvents>(
-    event: E,
-    listener: (payload: WorkerEvents[E]) => void,
-  ) {
-    this.#emitter.once(event, listener);
   }
 }
