@@ -14,13 +14,17 @@ export class Worker {
     this.port = this.findFreePort();
   }
 
-  static async create() {
+  static async create(
+    cleanup?: (worker: Worker) => void | Promise<void>,
+  ) {
     const worker = new Worker();
-    await worker.start();
+    await worker.start(cleanup);
     return worker;
   }
 
-  async start() {
+  async start(
+    cleanup?: (worker: Worker) => void | Promise<void>,
+  ) {
     await Deno.mkdir(`./data/workers/${this.name}`, { recursive: true });
     this.#process = new Deno.Command(
       "docker",
@@ -52,7 +56,12 @@ export class Worker {
         status.code,
       );
       this.#process = null;
+      if (cleanup) {
+        return cleanup(this);
+      }
     });
+
+    await this.waitUntilReady();
   }
 
   async run(req: Request, module: Module) {
@@ -104,6 +113,19 @@ export class Worker {
     return port;
   }
 
+  async waitUntilReady() {
+    const timeout = 30_000;
+    const delay = 20;
+    const startTime = Date.now();
+    while (Date.now() - startTime < timeout) {
+      if (await this.healthCheck()) {
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+    throw new Error("Worker failed to start");
+  }
+
   /**
    * @returns true if the worker is healthy, false otherwise
    */
@@ -111,20 +133,17 @@ export class Worker {
     if (this.#process === null) {
       return false;
     }
-    const startTime = Date.now();
-    while (Date.now() - startTime < 5000) {
-      try {
-        const res = await fetch(`http://localhost:${this.port}`, {
-          headers: {
-            "X-Health-Check": "true",
-          },
-        });
-        if (res.ok) {
-          return true;
-        }
-      } catch {
-        await new Promise((resolve) => setTimeout(resolve, 20));
+    try {
+      const res = await fetch(`http://localhost:${this.port}`, {
+        headers: {
+          "X-Health-Check": "true",
+        },
+      });
+      if (res.ok) {
+        return true;
       }
+    } catch {
+      return false;
     }
     return false;
   }
