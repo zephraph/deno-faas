@@ -170,9 +170,9 @@ app.get("/", (c) => {
           class="grid"
           style={{
             "grid-template-rows": "auto",
-            "grid-template-columns": "repeat(4, 1fr)",
-            "gap": "1rem 1rem",
-            "grid-auto-rows": "100px",
+            "grid-template-columns": "repeat(auto-fill, 320px)",
+            "gap": "0.75rem 0.75rem",
+            "grid-auto-rows": "170px",
           }}
         >
           {sv.ids.map((id) => <Iframe id={id} />)}
