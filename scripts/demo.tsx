@@ -38,10 +38,20 @@ const Template: FC = ({ children }) => (
     </head>
     <body>
       <main class="container">
+        <Nav />
         {children}
       </main>
     </body>
   </html>
+);
+
+const Nav: FC = () => (
+  <h1 style={{ display: "flex", gap: "10px" }}>
+    <a href="/">Demo</a>
+    <a href="/create">
+      <button>create</button>
+    </a>
+  </h1>
 );
 
 const PromptForm: FC = ({ input }: { input?: string }) => {
@@ -123,12 +133,6 @@ app.get("/", (c) => {
   return c.html(
     <Template>
       <>
-        <h1>
-          Hello World{"  "}
-          <a href="/create">
-            <button>create</button>
-          </a>
-        </h1>
         {html`<script type="text/javascript">
                 window.onload = () => {
                   function createIframeElement(src) {
