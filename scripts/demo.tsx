@@ -305,7 +305,7 @@ app.post("/create", async (c) => {
   }
   return c.html(
     <Template>
-      <div style={{ display: "flex", gap: "1rem" }}>
+      <div style={{ display: "flex", gap: "1rem", flexDirection: "column" }}>
         <iframe
           style={{ width: "100%", height: "500px" }}
           src={`/view/${id}`}
@@ -324,7 +324,9 @@ app.get("/create", (c) => {
       const prompt = localStorage.getItem("prompt") ?? "";
       return c.html(
         <Template>
-          <div style={{ display: "flex", gap: "1rem" }}>
+          <div
+            style={{ display: "flex", gap: "1rem", flexDirection: "column" }}
+          >
             <iframe
               style={{ width: "100%", height: "500px" }}
               src={`/view/${id}`}
