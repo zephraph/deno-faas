@@ -28,6 +28,13 @@ const Template: FC = ({ children }) => (
       <script src="https://unpkg.com/@highlightjs/cdn-assets@11.9.0/highlight.min.js" />
       <script src="https://unpkg.com/@highlightjs/cdn-assets@11.9.0/languages/shell.min.js" />
       <script>hljs.highlightAll();</script>
+      {html`
+      <style>
+        :root {
+          --user-color: #7bff7b;
+        }
+      </style>
+      `}
     </head>
     <body>
       <main class="container">
@@ -69,30 +76,50 @@ const PromptForm: FC = ({ input }: { input?: string }) => {
   );
 };
 
-const Iframe = ({ id }: { id: string }) => {
+const Iframe = ({ id, isUser }: { id: string; isUser: boolean }) => {
   return (
     <a
       id={id}
-      href={`/view/${id}`}
+      href={isUser ? `/create` : `/view/${id}`}
       style={{
         display: "block",
         width: "100%",
-        outline: "2px solid #007bff",
+        outline: isUser ? `2px solid var(--user-color)` : "2px solid #007bff",
         padding: "5px",
         margin: "5px",
         borderRadius: "4px",
         textDecoration: "none",
         color: "inherit",
+        position: "relative",
       }}
     >
       <div style={{ pointerEvents: "none", width: "100%" }}>
         <iframe src={`/view/${id}`} style={{ width: "100%" }} />
       </div>
+      {isUser && (
+        <span
+          style={{
+            position: "absolute",
+            bottom: "5px",
+            backgroundColor: "var(--user-color)",
+            color: "black",
+            padding: "3px 10px",
+            borderTopRightRadius: "5px",
+          }}
+        >
+          Yours
+        </span>
+      )}
     </a>
   );
 };
 
 app.get("/", (c) => {
+  const cookie = c.req.header("Cookie");
+  let userId = "";
+  if (cookie && cookie.includes("id=")) {
+    userId = cookie.split("id=")[1];
+  }
   return c.html(
     <Template>
       <>
@@ -175,7 +202,7 @@ app.get("/", (c) => {
             "grid-auto-rows": "100px",
           }}
         >
-          {sv.ids.map((id) => <Iframe id={id} />)}
+          {sv.ids.map((id) => <Iframe id={id} isUser={userId === id} />)}
         </div>
       </>
     </Template>,
@@ -219,6 +246,7 @@ app.post("/create", async (c) => {
     c.header("Set-Cookie", `id=${id}`);
   }
   if (prompt) {
+    localStorage.setItem("prompt", prompt as string);
     // Call openai
     const response = await openai.createChatCompletion({
       model: "gpt-4o",
@@ -268,6 +296,24 @@ app.post("/create", async (c) => {
 });
 
 app.get("/create", (c) => {
+  const cookie = c.req.header("Cookie");
+  if (cookie && cookie.includes("id=")) {
+    const id = cookie.split("id=")[1];
+    if (sv.ids.includes(id)) {
+      const prompt = localStorage.getItem("prompt") ?? "";
+      return c.html(
+        <Template>
+          <div style={{ display: "flex", gap: "1rem" }}>
+            <iframe
+              style={{ width: "100%", height: "500px" }}
+              src={`/view/${id}`}
+            />
+            <PromptForm input={prompt} />
+          </div>
+        </Template>,
+      );
+    }
+  }
   return c.html(
     <Template>
       <PromptForm />
