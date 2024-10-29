@@ -33,6 +33,17 @@ const Template: FC = ({ children }) => (
         :root {
           --user-color: #7bff7b;
         }
+        .qrcode {
+          position: absolute;
+          top: 10px;
+          right: 10px;
+          width: 200px;
+        }
+        @media (max-width: 1023px) {
+          .qrcode {
+            display: none;
+          }
+        }
       </style>
       `}
     </head>
@@ -133,7 +144,12 @@ app.get("/", (c) => {
   return c.html(
     <Template>
       <>
-        {html`<script type="text/javascript">
+        {html`<script type="module">
+                import("https://unpkg.com/@chillerlan/qrcode@1.0.1/dist/js-qrcode-es6-src.js").then(({ QRCode }) => {
+                  const qr = (new QRCode()).render(window.location.href);
+                  let svg = qr;
+                  document.body.appendChild(svg);
+                });
                 window.onload = () => {
                   function createIframeElement(src) {
                     const id = src.split("/").pop()
@@ -196,6 +212,7 @@ app.get("/", (c) => {
                   };
                   subscribe();
                 }
+                
               </script>`}
         <div
           class="grid"
