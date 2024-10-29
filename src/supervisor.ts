@@ -23,7 +23,9 @@ export class DenoHttpSupervisor {
 
       const worker = this.#workers[moduleName] ?? await Worker.create();
       this.#workers[moduleName] = worker;
-      if (!await worker.healthCheck()) {
+      if (!(await worker.healthCheck())) {
+        delete this.#workers[moduleName];
+        worker.shutdown()
         return Response.json({ error: "Health Check Failed" }, { status: 500 });
       }
       return worker.run(req, module);
